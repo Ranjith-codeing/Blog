@@ -1,252 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ranjith | Business Central Blog</title>
-
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    margin: 0;
-    background: #ffffff;
-    color: #111827;
-}
-
-/* Header */
-.header {
-    max-width: 900px;
-    margin: auto;
-    padding: 30px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo {
-    font-weight: bold;
-    font-size: 20px;
-}
-
-.nav a {
-    margin-left: 20px;
-    text-decoration: none;
-    color: #374151;
-}
-
-/* Hero */
-.hero {
-    max-width: 900px;
-    margin: auto;
-    padding: 40px 20px 10px;
-}
-
-.hero h1 {
-    font-size: 36px;
-    margin-bottom: 10px;
-}
-
-.hero p {
-    color: #6b7280;
-    font-size: 18px;
-}
-
-/* Section */
-.section {
-    max-width: 900px;
-    margin: auto;
-    padding: 20px;
-}
-
-.section h2 {
-    margin-bottom: 10px;
-}
-
-/* Featured */
-.featured {
-    border: 1px solid #e5e7eb;
-    padding: 20px;
-    border-radius: 10px;
-    background: #f9fafb;
-}
-
-/* Blog List */
-.blog-item {
-    padding: 20px 0;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.blog-item h3 {
-    margin: 0;
-}
-
-.blog-item a {
-    text-decoration: none;
-    color: #111827;
-}
-
-.blog-item p {
-    color: #6b7280;
-    margin-top: 8px;
-}
-
-.blog-meta {
-    font-size: 12px;
-    color: #9ca3af;
-}
-
-/* Tags */
-.tags {
-    margin-top: 5px;
-}
-
-.tag {
-    display: inline-block;
-    background: #eef2ff;
-    color: #3730a3;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 11px;
-    margin-right: 5px;
-}
-
-/* Footer */
-.footer {
-    max-width: 900px;
-    margin: auto;
-    padding: 40px 20px;
-    text-align: center;
-    color: #6b7280;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ranjith | Business Central Blog</title>
+  <meta name="description" content="Real-world solutions, integrations, and performance insights in Dynamics 365 Business Central." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 
-<!-- Header -->
-<div class="header">
-    <div class="logo">Ranjith</div>
-    <div class="nav">
-        <a href="#">Blog</a>
-        <a href="#">Categories</a>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
         <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+      </nav>
     </div>
-</div>
+  </header>
 
-<!-- Hero -->
-<div class="hero">
-    <h1>Business Central Technical Blog</h1>
-    <p>Sharing real-world solutions, integrations, and performance insights in Dynamics 365 Business Central.</p>
-</div>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Business Central<br />Technical Blog</h1>
+    <p>Real-world solutions, integrations, and performance insights in Dynamics 365 Business Central.</p>
+  </div>
 
-<!-- Featured -->
-<div class="section">
-    <h2>Featured Article</h2>
+  <!-- Featured -->
+  <div class="section">
+    <h2>Featured</h2>
     <div class="featured">
-        <div class="blog-meta">March 2026 • Integration</div>
-        <h2>
-            <a href="sharepoint-bc-integration.html">
-                SharePoint Integration with Business Central
-            </a>
-        </h2>
-        <p>
-            A complete approach to document management using SharePoint, including architecture,
-            validation strategies, and scalability considerations.
-        </p>
+      <div class="blog-meta">March 2026 · Integration</div>
+      <h2>
+        <a href="sharepoint-bc-integration.html">SharePoint Integration with Business Central</a>
+      </h2>
+      <p>
+        A complete approach to document management using SharePoint — full architecture walkthrough,
+        AL code, OAuth token handling, retry queues, and security best practices.
+      </p>
+      <div class="tags" style="margin-top:14px;">
+        <span class="tag">AL Code</span>
+        <span class="tag">OAuth</span>
+        <span class="tag">SharePoint</span>
+        <span class="tag">Job Queue</span>
+      </div>
     </div>
-</div>
+  </div>
 
-<!-- Categories -->
-<div class="section">
+  <!-- Categories -->
+  <div class="section">
     <h2>Categories</h2>
     <div class="tags">
-        <span class="tag">Integration</span>
-        <span class="tag">Excel Upload</span>
-        <span class="tag">API</span>
-        <span class="tag">Performance</span>
-        <span class="tag">Automation</span>
+      <span class="tag">Integration</span>
+      <span class="tag">Excel Upload</span>
+      <span class="tag">API</span>
+      <span class="tag">Performance</span>
+      <span class="tag">Automation</span>
     </div>
-</div>
+  </div>
 
-<!-- Blog List -->
-<div class="section">
-    <h2>Latest Articles</h2>
+  <!-- Blog List -->
+  <div class="section">
+    <h2>All Articles</h2>
+    <ul id="available-blogs" class="blog-list"></ul>
+  </div>
 
-    <div class="blog-item">
-        <div class="blog-meta">March 2026 • Excel Upload</div>
-        <h3>
-            <a href="#">
-                Excel Upload for Sales Invoices in Business Central
-            </a>
-        </h3>
-        <p>
-            Designing a scalable bulk upload solution with validation, error handling,
-            and reprocessing capability.
-        </p>
-        <div class="tags">
-            <span class="tag">Excel</span>
-            <span class="tag">Validation</span>
-        </div>
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© 2026 Ranjith</span>
+      <span>ranjithravi282@hotmail.com</span>
     </div>
+  </footer>
 
-    <div class="blog-item">
-        <div class="blog-meta">March 2026 • API</div>
-        <h3>
-            <a href="#">
-                API Integration Patterns in Business Central
-            </a>
-        </h3>
-        <p>
-            Best practices for integrating external systems using APIs, including authentication,
-            data mapping, and error handling strategies.
-        </p>
-        <div class="tags">
-            <span class="tag">API</span>
-            <span class="tag">Integration</span>
-        </div>
-    </div>
-
-    <div class="blog-item">
-        <div class="blog-meta">March 2026 • Performance</div>
-        <h3>
-            <a href="#">
-                Performance Optimization Techniques in Business Central
-            </a>
-        </h3>
-        <p>
-            Practical techniques to improve performance using efficient data handling,
-            optimized queries, and background processing.
-        </p>
-        <div class="tags">
-            <span class="tag">Performance</span>
-            <span class="tag">Optimization</span>
-        </div>
-    </div>
-
-    <div class="blog-item">
-        <div class="blog-meta">March 2026 • Automation</div>
-        <h3>
-            <a href="#">
-                Automating Document Processing with Business Central
-            </a>
-        </h3>
-        <p>
-            Automate document workflows using integration tools and reduce manual intervention
-            across business processes.
-        </p>
-        <div class="tags">
-            <span class="tag">Automation</span>
-            <span class="tag">Workflow</span>
-        </div>
-    </div>
-
-</div>
-
-<!-- Footer -->
-<div class="footer">
-    <p>© 2026 Ranjith</p>
-    <p>Contact: ranjithravi282@hotmail.com</p>
-</div>
-
+  <script src="script.js"></script>
 </body>
 </html>

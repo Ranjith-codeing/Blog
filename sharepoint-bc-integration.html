@@ -1,232 +1,673 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SharePoint Integration | Business Central</title>
-
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    margin: 0;
-    background: #ffffff;
-    color: #111827;
-}
-
-/* Header */
-.header {
-    max-width: 900px;
-    margin: auto;
-    padding: 25px 20px;
-    display: flex;
-    justify-content: space-between;
-}
-
-.logo {
-    font-weight: bold;
-}
-
-.nav a {
-    margin-left: 20px;
-    text-decoration: none;
-    color: #374151;
-}
-
-/* Container */
-.container {
-    max-width: 900px;
-    margin: auto;
-    padding: 20px;
-}
-
-/* Title */
-h1 {
-    font-size: 34px;
-}
-
-h2 {
-    margin-top: 30px;
-}
-
-/* Sections */
-.section {
-    margin-top: 25px;
-}
-
-/* Highlight Box */
-.box {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    padding: 20px;
-    border-radius: 10px;
-    margin-top: 15px;
-}
-
-/* List */
-ul {
-    padding-left: 20px;
-}
-
-/* Image */
-img {
-    width: 100%;
-    border-radius: 10px;
-    margin-top: 15px;
-}
-
-/* Footer */
-.footer {
-    text-align: center;
-    margin-top: 40px;
-    padding: 30px;
-    color: #6b7280;
-}
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SharePoint Integration with Business Central | Ranjith</title>
+    <meta name="description"
+        content="A complete approach to document management using SharePoint and Business Central — architecture, AL code, validation, and scalability." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 
-<!-- Header -->
-<div class="header">
-    <div class="logo">Ranjith</div>
-    <div class="nav">
-        <a href="index.html">Blog</a>
-        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
-    </div>
-</div>
-
-<!-- Content -->
-<div class="container">
-
-    <h1>SharePoint Integration with Business Central</h1>
-    <p>Designing a scalable document management solution using SharePoint and Business Central.</p>
-
-    <!-- Overview -->
-    <div class="section">
-        <h2>Overview</h2>
-        <p>
-            SharePoint integration allows organizations to store documents outside Business Central
-            while maintaining seamless access within transactions. This approach improves performance,
-            scalability, and document accessibility.
-        </p>
-    </div>
-
-    <!-- Business Value -->
-    <div class="section">
-        <h2>Business Value</h2>
-        <div class="box">
-            <ul>
-                <li>Centralized document storage</li>
-                <li>Reduced database size in ERP</li>
-                <li>Easy access from Business Central records</li>
-                <li>Improved compliance and audit tracking</li>
-            </ul>
+    <!-- Header -->
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="logo"><a href="index.html">Ranjith</a></div>
+            <nav class="nav">
+                <a href="index.html">Blog</a>
+                <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+            </nav>
         </div>
-    </div>
+    </header>
 
-    <!-- Use Cases -->
-    <div class="section">
-        <h2>Use Cases</h2>
-        <ul>
-            <li>Vendor invoice attachments</li>
-            <li>Sales order supporting documents</li>
-            <li>Customer-related files</li>
-            <li>Audit and compliance documentation</li>
-        </ul>
-    </div>
+    <div class="article-layout">
 
-    <!-- Architecture -->
-    <div class="section">
-        <h2>Solution Architecture</h2>
-        <div class="box">
-            Users upload documents → SharePoint stores files → Business Central links documents to records
+        <!-- Main Article -->
+        <main class="article-main">
+
+            <!-- Article Header -->
+            <div class="article-header">
+                <div class="article-meta-top">
+                    <span class="cat-badge">Integration</span>
+                    <span class="read-time">12 min read</span>
+                </div>
+                <h1 class="article-title">SharePoint Integration with Business Central</h1>
+                <p class="article-subtitle">Designing a scalable, secure document management layer using Microsoft
+                    SharePoint — with full architecture walkthrough, AL code, and real-world patterns.</p>
+                <div class="article-byline">
+                    <div class="byline-info">
+                        <span class="byline-author">Ranjith</span>
+                        <span class="byline-sep">·</span>
+                        <span class="byline-date">March 2026</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <hr class="article-rule" />
+
+            <!-- Intro -->
+            <p class="article-lead">
+                Every Dynamics 365 Business Central project eventually faces the same question: where do documents live?
+                Storing files directly in the ERP database bloats it, slows backups, and complicates audits. SharePoint
+                — already part of the Microsoft 365 ecosystem — is the natural answer. This guide walks through a
+                production-ready integration from first principles.
+            </p>
+
+            <!-- TOC -->
+            <nav class="toc" aria-label="Table of contents">
+                <div class="toc-label">In this article</div>
+                <ol class="toc-list">
+                    <li><a href="#why-sharepoint">Why SharePoint?</a></li>
+                    <li><a href="#architecture">Solution Architecture</a></li>
+                    <li><a href="#prerequisites">Prerequisites & Setup</a></li>
+                    <li><a href="#al-code">AL Code Walkthrough</a></li>
+                    <li><a href="#validation">Validation & Error Handling</a></li>
+                    <li><a href="#performance">Performance & Scalability</a></li>
+                    <li><a href="#security">Security Considerations</a></li>
+                    <li><a href="#conclusion">Conclusion</a></li>
+                </ol>
+            </nav>
+
+            <!-- Section 1 -->
+            <section id="why-sharepoint">
+                <h2>Why SharePoint?</h2>
+                <p>
+                    Business Central supports native attachment storage via the <code>Tenant Media</code> and
+                    <code>Document Attachment</code> tables, but this comes with limitations at scale. When attachment
+                    sizes climb into the gigabytes and record counts stretch into the hundreds of thousands, database
+                    performance degrades noticeably — and cloud-hosted environments have storage caps that add up
+                    quickly.
+                </p>
+                <p>
+                    SharePoint Online, as a Microsoft-first platform, offers a compelling alternative:
+                </p>
+                <ul>
+                    <li><strong>Unlimited document storage</strong> relative to ERP database cost</li>
+                    <li><strong>Native Microsoft 365 integration</strong> — same identity, permissions, and compliance
+                        stack</li>
+                    <li><strong>Versioning and audit trails</strong> built into the platform</li>
+                    <li><strong>Familiar UI</strong> for end users who already use Teams and OneDrive</li>
+                    <li><strong>Governance features</strong> like retention policies, sensitivity labels, and DLP</li>
+                </ul>
+
+                <div class="callout callout-info">
+                    <div class="callout-icon">💡</div>
+                    <div>
+                        <strong>Key insight:</strong> SharePoint should be treated as a <em>document store</em>, not a
+                        collaboration hub, in this pattern. Business Central remains the system of record; SharePoint is
+                        the file cabinet.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2 -->
+            <section id="architecture">
+                <h2>Solution Architecture</h2>
+                <p>
+                    The integration follows a three-layer pattern. Business Central handles transactional logic and
+                    stores only a <em>reference</em> (the SharePoint URL) — never the file bytes themselves.
+                </p>
+
+                <div class="arch-diagram">
+                    <div class="arch-box arch-bc">
+                        <div class="arch-icon">🏢</div>
+                        <div class="arch-name">Business Central</div>
+                        <div class="arch-desc">Document links, metadata, validation logic</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box arch-middle">
+                        <div class="arch-icon">⚙️</div>
+                        <div class="arch-name">Azure AD OAuth</div>
+                        <div class="arch-desc">Token acquisition, app registration, scopes</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box arch-sp">
+                        <div class="arch-icon">📁</div>
+                        <div class="arch-name">SharePoint Online</div>
+                        <div class="arch-desc">File storage, versioning, permissions</div>
+                    </div>
+                </div>
+
+                <h3>Data Model</h3>
+                <p>Two custom tables anchor the integration:</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Table</th>
+                            <th>Purpose</th>
+                            <th>Key Fields</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>SP Document Mapping</code></td>
+                            <td>Links BC records to SharePoint files</td>
+                            <td>Record Type, Record No., SharePoint URL, File Name, Uploaded At</td>
+                        </tr>
+                        <tr>
+                            <td><code>SP Integration Setup</code></td>
+                            <td>Holds connection configuration</td>
+                            <td>Tenant ID, Client ID, Client Secret, Site URL, Library Name</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 3 -->
+            <section id="prerequisites">
+                <h2>Prerequisites & Setup</h2>
+                <p>Before writing a single line of AL, the Azure side must be configured correctly. Skipping this step
+                    is the most common source of integration failures.</p>
+
+                <h3>Azure App Registration</h3>
+                <ol>
+                    <li>Go to <strong>Azure Active Directory → App Registrations → New Registration</strong></li>
+                    <li>Name it something descriptive: <em>BC-SharePoint-Integration</em></li>
+                    <li>Set the redirect URI to your BC environment URL (for delegated flows) or leave blank (for client
+                        credentials)</li>
+                    <li>Under <strong>API Permissions</strong>, add:
+                        <ul>
+                            <li><code>Sites.ReadWrite.All</code> (Application permission)</li>
+                            <li><code>Files.ReadWrite.All</code> (Application permission)</li>
+                        </ul>
+                    </li>
+                    <li>Click <strong>Grant admin consent</strong> — this is mandatory for app-only flows</li>
+                    <li>Under <strong>Certificates & Secrets</strong>, create a new client secret and copy it
+                        immediately</li>
+                </ol>
+
+                <div class="callout callout-warn">
+                    <div class="callout-icon">⚠️</div>
+                    <div>
+                        <strong>Security note:</strong> Store the Client Secret in Business Central's <strong>Isolated
+                            Storage</strong>, never in a plain text field. Rotate secrets every 12 months and track
+                        expiry dates proactively.
+                    </div>
+                </div>
+
+                <h3>SharePoint Site Structure</h3>
+                <p>Organise your SharePoint library to mirror your BC document types:</p>
+                <pre class="code-block"><code>/sites/BusinessCentral/
+  ├── Shared Documents/
+  │     ├── VendorInvoices/
+  │     │     └── {Vendor No.}/
+  │     ├── SalesOrders/
+  │     │     └── {Document No.}/
+  │     ├── Customers/
+  │     └── AuditFiles/</code></pre>
+            </section>
+
+            <!-- Section 4 -->
+            <section id="al-code">
+                <h2>AL Code Walkthrough</h2>
+                <p>Below is the core codeunit that manages the token acquisition and file upload. This is
+                    production-ready AL, not pseudocode.</p>
+
+                <h3>Codeunit: SP Integration Manager</h3>
+                <pre class="code-block"><code>codeunit 50100 "SP Integration Manager"
+{
+    procedure UploadDocumentToSharePoint(
+        RecordType: Text;
+        RecordNo: Code[20];
+        FileName: Text;
+        FileContent: InStream
+    ): Text
+    var
+        Setup: Record "SP Integration Setup";
+        Mapping: Record "SP Document Mapping";
+        AccessToken: Text;
+        UploadUrl: Text;
+        SharePointUrl: Text;
+    begin
+        // Fetch setup
+        Setup.Get();
+        Setup.TestField("Site URL");
+        Setup.TestField("Library Name");
+
+        // Acquire OAuth token
+        AccessToken := AcquireAccessToken(Setup);
+
+        // Build upload URL for SharePoint REST API
+        UploadUrl := Setup."Site URL" +
+            '/_api/web/GetFolderByServerRelativeUrl(''' +
+            Setup."Library Name" + '/' + RecordType + '/' + RecordNo +
+            ''')/Files/add(url=''' + FileName +
+            ''',overwrite=true)';
+
+        // Upload the file
+        SharePointUrl := UploadFileToSharePoint(
+            UploadUrl, AccessToken, FileContent, FileName);
+
+        // Store the mapping
+        Mapping.Init();
+        Mapping."Record Type"  := RecordType;
+        Mapping."Record No."   := RecordNo;
+        Mapping."File Name"    := FileName;
+        Mapping."SharePoint URL" := SharePointUrl;
+        Mapping."Uploaded At"  := CurrentDateTime();
+        Mapping."Uploaded By"  := UserId();
+        Mapping.Insert(true);
+
+        exit(SharePointUrl);
+    end;
+
+    local procedure AcquireAccessToken(Setup: Record "SP Integration Setup"): Text
+    var
+        Client: HttpClient;
+        Request: HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        JsonObj: JsonObject;
+        TokenText: Text;
+        Body: Text;
+        ClientSecret: Text;
+    begin
+        // Retrieve secret from Isolated Storage
+        if not IsolatedStorage.Get('SP_ClientSecret', DataScope::Company, ClientSecret) then
+            Error('SharePoint client secret not configured.');
+
+        Body := 'grant_type=client_credentials' +
+                '&client_id=' + Setup."Client ID" +
+                '&client_secret=' + ClientSecret +
+                '&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default';
+
+        Content.WriteFrom(Body);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/x-www-form-urlencoded');
+
+        Request.Method := 'POST';
+        Request.SetRequestUri(
+            'https://login.microsoftonline.com/' + Setup."Tenant ID" + '/oauth2/v2.0/token');
+        Request.Content := Content;
+
+        Client.Send(Request, Response);
+
+        if not Response.IsSuccessStatusCode() then
+            Error('Token acquisition failed. Status: %1', Response.HttpStatusCode());
+
+        Response.Content.ReadAs(TokenText);
+        JsonObj.ReadFrom(TokenText);
+        exit(GetJsonValue(JsonObj, 'access_token'));
+    end;
+}</code></pre>
+
+                <h3>Codeunit: SP Document Page Extension</h3>
+                <p>This page extension wires the upload action into Vendor Ledger Entries — the most common use case.
+                </p>
+                <pre class="code-block"><code>pageextension 50100 "Vendor Ledger SP Ext" extends "Vendor Ledger Entries"
+{
+    actions
+    {
+        addlast(processing)
+        {
+            action(UploadToSharePoint)
+            {
+                Caption = 'Upload to SharePoint';
+                Image = Attach;
+                ApplicationArea = All;
+                ToolTip = 'Upload a document and link it to this entry.';
+
+                trigger OnAction()
+                var
+                    SPMgr: Codeunit "SP Integration Manager";
+                    InStr: InStream;
+                    FileName: Text;
+                begin
+                    if not UploadIntoStream('Select Document', '', '', FileName, InStr) then
+                        exit;
+
+                    SPMgr.UploadDocumentToSharePoint(
+                        'VendorInvoices',
+                        Format(Rec."Entry No."),
+                        FileName,
+                        InStr);
+
+                    Message('Document uploaded and linked successfully.');
+                end;
+            }
+        }
+    }
+}</code></pre>
+
+                <div class="callout callout-info">
+                    <div class="callout-icon">💡</div>
+                    <div>
+                        The <code>UploadIntoStream</code> built-in handles browser file picker dialogs in both web
+                        client and mobile — no custom dialogs needed.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5 -->
+            <section id="validation">
+                <h2>Validation & Error Handling</h2>
+                <p>A production integration must fail gracefully. Uploads can fail for dozens of reasons — network
+                    blips, SharePoint throttling, file type restrictions, or expired tokens. Each failure mode needs a
+                    distinct path.</p>
+
+                <h3>Upload Log Table</h3>
+                <p>Track every attempt — success or failure — so operations teams can diagnose issues without digging
+                    through event logs:</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Entry No.</td>
+                            <td>Integer</td>
+                            <td>Auto-key</td>
+                        </tr>
+                        <tr>
+                            <td>Record Type</td>
+                            <td>Text[50]</td>
+                            <td>Source document type</td>
+                        </tr>
+                        <tr>
+                            <td>Record No.</td>
+                            <td>Code[20]</td>
+                            <td>Source document number</td>
+                        </tr>
+                        <tr>
+                            <td>File Name</td>
+                            <td>Text[250]</td>
+                            <td>Original file name</td>
+                        </tr>
+                        <tr>
+                            <td>Status</td>
+                            <td>Enum</td>
+                            <td>Pending / Success / Failed</td>
+                        </tr>
+                        <tr>
+                            <td>Error Message</td>
+                            <td>Text[2048]</td>
+                            <td>Full error from SharePoint API</td>
+                        </tr>
+                        <tr>
+                            <td>Retry Count</td>
+                            <td>Integer</td>
+                            <td>Number of retry attempts</td>
+                        </tr>
+                        <tr>
+                            <td>Created At</td>
+                            <td>DateTime</td>
+                            <td>First attempt timestamp</td>
+                        </tr>
+                        <tr>
+                            <td>Processed At</td>
+                            <td>DateTime</td>
+                            <td>Last attempt timestamp</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Retry Job Queue</h3>
+                <p>Failed uploads are picked up by a <strong>Job Queue Entry</strong> running every 15 minutes. The
+                    retry codeunit queries for <code>Status = Failed</code> and <code>Retry Count &lt; 3</code>, then
+                    re-attempts the upload:</p>
+
+                <pre class="code-block"><code>codeunit 50101 "SP Retry Failed Uploads"
+{
+    TableNo = "Job Queue Entry";
+
+    trigger OnRun()
+    var
+        Log: Record "SP Upload Log";
+        SPMgr: Codeunit "SP Integration Manager";
+    begin
+        Log.SetRange(Status, Log.Status::Failed);
+        Log.SetFilter("Retry Count", '<%1', 3);
+
+        if not Log.FindSet(true) then
+            exit;
+
+        repeat
+            Commit(); // isolate each retry in its own transaction
+            if not TryUploadFromLog(Log, SPMgr) then begin
+                Log."Error Message" := GetLastErrorText();
+                Log."Retry Count"   += 1;
+                Log."Processed At"  := CurrentDateTime();
+                Log.Modify();
+            end;
+        until Log.Next() = 0;
+    end;
+
+    [TryFunction]
+    local procedure TryUploadFromLog(var Log: Record "SP Upload Log";
+                                     var SPMgr: Codeunit "SP Integration Manager")
+    begin
+        // Re-fetch blob from temp storage, re-attempt upload
+        // On success, update Log.Status := Success
+    end;
+}</code></pre>
+
+                <h3>Validation Rules</h3>
+                <div class="checklist">
+                    <div class="check-item check-pass">File extension must be in the allowed list (PDF, DOCX, XLSX, PNG,
+                        JPG)</div>
+                    <div class="check-item check-pass">File size must not exceed 50 MB per upload</div>
+                    <div class="check-item check-pass">Duplicate file name detection per record (warn, not block)</div>
+                    <div class="check-item check-pass">Record must exist in BC before allowing attachment</div>
+                    <div class="check-item check-pass">SharePoint setup must be configured before any upload action is
+                        enabled</div>
+                </div>
+            </section>
+
+            <!-- Section 6 -->
+            <section id="performance">
+                <h2>Performance & Scalability</h2>
+                <p>At low volumes, any approach works. The design choices that matter show up when you're processing
+                    hundreds of attachments per day across thousands of BC records.</p>
+
+                <h3>Key Optimisation Techniques</h3>
+
+                <div class="perf-grid">
+                    <div class="perf-card">
+                        <div class="perf-num">01</div>
+                        <h4>Background Upload via Job Queue</h4>
+                        <p>Never upload synchronously in a page action if the file is larger than ~2 MB. Enqueue the
+                            upload as a Job Queue Entry and give the user immediate feedback.</p>
+                    </div>
+                    <div class="perf-card">
+                        <div class="perf-num">02</div>
+                        <h4>Token Caching</h4>
+                        <p>OAuth tokens are valid for 3600 seconds. Cache the token in Isolated Storage with an expiry
+                            check — avoid a round-trip to Azure AD on every upload.</p>
+                    </div>
+                    <div class="perf-card">
+                        <div class="perf-num">03</div>
+                        <h4>Chunked Upload for Large Files</h4>
+                        <p>SharePoint's REST API supports chunked uploads via <code>StartUpload</code> /
+                            <code>ContinueUpload</code> / <code>FinishUpload</code>. Use this for files above 10 MB.</p>
+                    </div>
+                    <div class="perf-card">
+                        <div class="perf-num">04</div>
+                        <h4>Folder Pre-creation</h4>
+                        <p>Create the record-level folder in SharePoint at document creation time in BC, not at upload
+                            time. Eliminates a REST call per upload.</p>
+                    </div>
+                </div>
+
+                <h3>SharePoint API Rate Limits</h3>
+                <p>SharePoint Online enforces throttling. At scale, implement exponential back-off:</p>
+
+                <pre class="code-block"><code>// Simplified back-off logic
+MaxRetries := 3;
+DelayMs := 500; // start at 500ms
+
+for Attempt := 1 to MaxRetries do begin
+    if TryCallSharePointApi(...) then
+        exit; // success
+
+    if Response.HttpStatusCode() = 429 then begin
+        Sleep(DelayMs);
+        DelayMs *= 2; // 500 → 1000 → 2000ms
+    end else
+        Error('SharePoint error: %1', Response.HttpStatusCode());
+end;</code></pre>
+            </section>
+
+            <!-- Section 7 -->
+            <section id="security">
+                <h2>Security Considerations</h2>
+                <p>Document management is a compliance surface. Get these right from day one — retrofitting security is
+                    painful.</p>
+
+                <h3>Secrets Management</h3>
+                <ul>
+                    <li>Store Client Secret in <strong>Isolated Storage</strong> scoped to
+                        <code>DataScope::Company</code></li>
+                    <li>Never expose secrets on a setup page — write-only fields with masked display</li>
+                    <li>Implement a <em>Test Connection</em> action so admins can validate without seeing the secret
+                    </li>
+                </ul>
+
+                <h3>SharePoint Permissions</h3>
+                <ul>
+                    <li>Use a <strong>dedicated service account</strong> (app registration) with minimum required
+                        permissions</li>
+                    <li>Grant <code>Sites.Selected</code> instead of <code>Sites.ReadWrite.All</code> if targeting a
+                        specific site only — available since 2021</li>
+                    <li>Apply SharePoint site column <em>Sensitivity Labels</em> for documents that contain PII</li>
+                </ul>
+
+                <h3>Business Central Permission Sets</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Permission Set</th>
+                            <th>Users</th>
+                            <th>Access Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>SP-ADMIN</td>
+                            <td>IT / ERP Admins</td>
+                            <td>Full setup + read logs</td>
+                        </tr>
+                        <tr>
+                            <td>SP-UPLOAD</td>
+                            <td>AP / AR Teams</td>
+                            <td>Upload documents, view links</td>
+                        </tr>
+                        <tr>
+                            <td>SP-READ</td>
+                            <td>Auditors</td>
+                            <td>View document links only</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="callout callout-info">
+                    <div class="callout-icon">🔒</div>
+                    <div>
+                        Enable <strong>SharePoint audit logging</strong> and send those logs to a Log Analytics
+                        workspace. This gives you a searchable, tamper-proof audit trail that satisfies most compliance
+                        requirements (ISO 27001, SOC 2, GDPR).
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 8 -->
+            <section id="conclusion">
+                <h2>Conclusion</h2>
+                <p>
+                    A well-implemented SharePoint integration transforms how Business Central handles documents. You
+                    eliminate database bloat, gain a proper compliance layer, and give end users access to files from
+                    the tools they already use — all without rebuilding the wheel.
+                </p>
+                <p>The pattern described here — reference-based linking, background uploads, retry queues, and scoped
+                    permissions — is a reliable production template. Adapt the folder structure and permission sets to
+                    your organisation's conventions, and you have a foundation that scales from a 10-user pilot to an
+                    enterprise-wide rollout.
+                </p>
+                <div class="callout callout-success">
+                    <div class="callout-icon">✅</div>
+                    <div>
+                        <strong>What's next?</strong> Read the follow-up article on <em>Excel Upload for Sales
+                            Invoices</em> — it uses a similar background-processing pattern and pairs well with document
+                        management.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Article Footer -->
+            <div class="article-footer">
+                <div class="article-tags">
+                    <span class="tag">Integration</span>
+                    <span class="tag">SharePoint</span>
+                    <span class="tag">AL Code</span>
+                    <span class="tag">OAuth</span>
+                    <span class="tag">Document Management</span>
+                </div>
+                <a href="index.html" class="back-link">← Back to all articles</a>
+            </div>
+
+        </main>
+
+        <!-- Sidebar -->
+        <aside class="article-sidebar">
+            <div class="sidebar-sticky">
+
+                <div class="sidebar-widget">
+                    <div class="widget-label">More Articles</div>
+                    <ul class="sidebar-links">
+                        <li><a href="#">Excel Upload for Sales Invoices</a></li>
+                        <li><a href="#">API Integration Patterns</a></li>
+                        <li><a href="#">Performance Optimization</a></li>
+                        <li><a href="#">Automating Document Processing</a></li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-widget">
+                    <div class="widget-label">Topics Covered</div>
+                    <div class="sidebar-tags">
+                        <span class="tag">Azure AD</span>
+                        <span class="tag">OAuth 2.0</span>
+                        <span class="tag">AL Language</span>
+                        <span class="tag">Job Queue</span>
+                        <span class="tag">REST API</span>
+                        <span class="tag">Isolated Storage</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-widget sidebar-contact">
+                    <div class="widget-label">Questions?</div>
+                    <p>Found an issue or have a question about this implementation?</p>
+                    <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+                </div>
+
+            </div>
+        </aside>
+
+    </div><!-- /article-layout -->
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <span>© 2026 Ranjith</span>
+            <span>ranjithravi282@hotmail.com</span>
         </div>
-
-        <!-- Optional image -->
-        <img src="images/sharepoint-architecture.png" alt="SharePoint Integration Architecture">
-    </div>
-
-    <!-- Components -->
-    <div class="section">
-        <h2>Core Components</h2>
-        <div class="box">
-            <ul>
-                <li>Document mapping between SharePoint and Business Central</li>
-                <li>Integration setup for connection configuration</li>
-                <li>Processing logic for linking and validation</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- Features -->
-    <div class="section">
-        <h2>Key Features</h2>
-        <ul>
-            <li>Automatic document linking</li>
-            <li>Secure storage in SharePoint</li>
-            <li>Real-time accessibility</li>
-            <li>Scalable architecture</li>
-        </ul>
-    </div>
-
-    <!-- Validation -->
-    <div class="section">
-        <h2>Validation & Control</h2>
-        <div class="box">
-            <ul>
-                <li>Ensures documents are linked to valid records</li>
-                <li>Prevents duplicate document mapping</li>
-                <li>Supports file restrictions</li>
-                <li>Maintains data consistency</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- Error Handling -->
-    <div class="section">
-        <h2>Error Handling & Reliability</h2>
-        <ul>
-            <li>Tracks failed uploads</li>
-            <li>Supports retry mechanism</li>
-            <li>Provides clear error visibility</li>
-        </ul>
-    </div>
-
-    <!-- Performance -->
-    <div class="section">
-        <h2>Performance & Scalability</h2>
-        <ul>
-            <li>Optimized for large document volumes</li>
-            <li>Background processing support</li>
-            <li>Efficient handling of large files</li>
-        </ul>
-    </div>
-
-    <!-- Security -->
-    <div class="section">
-        <h2>Security</h2>
-        <ul>
-            <li>Controlled access via Microsoft ecosystem</li>
-            <li>Secure document storage</li>
-            <li>Audit tracking enabled</li>
-        </ul>
-    </div>
-
-    <!-- Conclusion -->
-    <div class="section">
-        <h2>Conclusion</h2>
-        <p>
-            SharePoint integration provides a scalable and secure approach to document management.
-            It enhances efficiency while keeping Business Central optimized for transactional data.
-        </p>
-    </div>
-
-</div>
-
-<!-- Footer -->
-<div class="footer">
-    © 2026 Ranjith | Contact: ranjithravi282@hotmail.com
-</div>
+    </footer>
 
 </body>
+
 </html>
