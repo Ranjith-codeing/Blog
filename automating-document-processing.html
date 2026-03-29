@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automating Document Processing in Business Central | Ranjith</title>
+  <meta name="description" content="Automate document workflows in Business Central using events, Job Queue, approval workflows, and external triggers — reducing manual intervention end to end." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">Automation</span>
+          <span class="read-time">13 min read</span>
+        </div>
+        <h1 class="article-title">Automating Document Processing with Business Central</h1>
+        <p class="article-subtitle">Using AL event subscribers, Job Queue scheduling, approval workflows, and Power Automate triggers to eliminate manual touchpoints across purchase, sales, and finance document flows.</p>
+        <div class="article-byline">
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">March 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Every time a user manually opens a document, checks a field, and clicks Post — that's a process waiting to be automated. Business Central provides a rich event system, a built-in scheduler, and deep Power Automate integration. This guide connects those pieces into working automation patterns.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#event-model">The Event-Driven Model</a></li>
+          <li><a href="#subscribers">Event Subscribers in AL</a></li>
+          <li><a href="#auto-post">Automatic Document Posting</a></li>
+          <li><a href="#approvals">Approval Workflow Integration</a></li>
+          <li><a href="#notifications">Email & Teams Notifications</a></li>
+          <li><a href="#power-automate">Power Automate Triggers</a></li>
+          <li><a href="#monitoring">Monitoring & Alerting</a></li>
+          <li><a href="#checklist">Automation Design Checklist</a></li>
+        </ol>
+      </nav>
+
+      <section id="event-model">
+        <h2>The Event-Driven Model</h2>
+        <p>
+          Business Central's event system is the backbone of all automation. Rather than modifying base objects directly (which breaks upgrades), you subscribe to <em>published events</em> on standard codeunits and tables. When BC triggers those events, your subscriber code runs automatically.
+        </p>
+
+        <div class="arch-diagram">
+          <div class="arch-box arch-bc">
+            <div class="arch-icon">📄</div>
+            <div class="arch-name">Document Action</div>
+            <div class="arch-desc">User posts, releases, or creates a document</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-middle">
+            <div class="arch-icon">📡</div>
+            <div class="arch-name">BC Publishes Event</div>
+            <div class="arch-desc">OnAfterPost, OnAfterRelease, OnAfterInsert…</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-sp">
+            <div class="arch-icon">⚙️</div>
+            <div class="arch-name">Your Subscriber Runs</div>
+            <div class="arch-desc">Notification, linking, validation, or queuing</div>
+          </div>
+        </div>
+
+        <p>The three event categories you'll use most:</p>
+        <table class="data-table">
+          <thead><tr><th>Category</th><th>Example Events</th><th>Typical Use</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Business Events</strong></td><td><code>OnAfterPostSalesInvoice</code>, <code>OnAfterReleasePurchaseDoc</code></td><td>Triggering downstream actions after document state changes</td></tr>
+            <tr><td><strong>Integration Events</strong></td><td><code>OnBeforeInsertPostedPurchInv</code></td><td>Copying custom fields to posted tables, enriching data</td></tr>
+            <tr><td><strong>Table Triggers</strong></td><td><code>OnAfterInsertEvent</code>, <code>OnAfterModifyEvent</code></td><td>Reacting to any record change without modifying the table</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="subscribers">
+        <h2>Event Subscribers in AL</h2>
+        <p>
+          An event subscriber is a regular AL procedure decorated with the <code>[EventSubscriber]</code> attribute. It lives in any codeunit with <code>EventSubscriberInstance = StaticAutomatic</code> — BC instantiates and calls it automatically.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50500 "Document Automation Subscribers"
+{
+    // StaticAutomatic = BC creates an instance automatically when the event fires
+    SingleInstance = false;
+
+    // Fires after a Sales Invoice is posted
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post",
+                     'OnAfterFinalizePosting', '', false, false)]
+    local procedure OnAfterSalesInvoicePosted(
+        var SalesHeader: Record "Sales Header";
+        var SalesShipmentHeader: Record "Sales Shipment Header";
+        var SalesInvoiceHeader: Record "Sales Invoice Header";
+        var SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        var ReturnReceiptHeader: Record "Return Receipt Header";
+        var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line";
+        CommitIsSuppressed: Boolean)
+    var
+        Notifier: Codeunit "Document Notification Manager";
+        Archiver: Codeunit "Document Archive Manager";
+    begin
+        if SalesInvoiceHeader."No." = '' then exit;
+
+        // Queue email notification (never block posting with synchronous sends)
+        Notifier.QueueInvoiceNotification(SalesInvoiceHeader."No.");
+
+        // Archive to SharePoint
+        Archiver.ScheduleArchive('SalesInvoice', SalesInvoiceHeader."No.");
+    end;
+
+    // Fires after a Purchase Order is released
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Release Purchase Document",
+                     'OnAfterReleasePurchaseDoc', '', false, false)]
+    local procedure OnAfterPurchaseOrderReleased(var PurchaseHeader: Record "Purchase Header")
+    var
+        ApprovalMgr: Codeunit "Document Approval Manager";
+    begin
+        if PurchaseHeader."Document Type" <> PurchaseHeader."Document Type"::Order then
+            exit;
+
+        // Trigger approval flow for orders above threshold
+        if PurchaseHeader.Amount > GetApprovalThreshold() then
+            ApprovalMgr.RequestApproval(PurchaseHeader);
+    end;
+
+    local procedure GetApprovalThreshold(): Decimal
+    var
+        Setup: Record "Automation Setup";
+    begin
+        if Setup.Get() then
+            exit(Setup."PO Approval Threshold");
+        exit(5000); // default
+    end;
+}</code></pre>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <strong>Never call slow operations directly in an event subscriber.</strong> Sending emails, calling APIs, or running heavy queries inside a subscriber adds to the user's posting wait time. Always enqueue work via Job Queue instead.
+          </div>
+        </div>
+      </section>
+
+      <section id="auto-post">
+        <h2>Automatic Document Posting</h2>
+        <p>
+          Certain document types — recurring journals, auto-invoices from confirmed orders, or scheduled standing charges — should post on a schedule without human intervention. The Job Queue makes this reliable and auditable.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50501 "Auto Post Recurring Invoices"
+{
+    TableNo = "Job Queue Entry";
+
+    trigger OnRun()
+    var
+        SalesHeader: Record "Sales Header";
+        PostingMgr:  Codeunit "Sales-Post";
+        LogEntry:    Record "Auto Post Log";
+        ErrorText:   Text;
+    begin
+        // Find all invoices flagged for automatic posting today
+        SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Invoice);
+        SalesHeader.SetRange("Auto Post", true);
+        SalesHeader.SetRange("Posting Date", Today());
+        SalesHeader.SetRange(Status, SalesHeader.Status::Released);
+
+        if not SalesHeader.FindSet() then exit;
+
+        repeat
+            Commit(); // isolate each invoice
+
+            Clear(ErrorText);
+            if not TryPostSingle(SalesHeader, PostingMgr) then
+                ErrorText := GetLastErrorText();
+
+            // Log every attempt
+            LogEntry.Init();
+            LogEntry."Document No."   := SalesHeader."No.";
+            LogEntry."Customer No."   := SalesHeader."Sell-to Customer No.";
+            LogEntry."Attempted At"   := CurrentDateTime();
+            LogEntry.Success          := ErrorText = '';
+            LogEntry."Error Message"  := ErrorText;
+            LogEntry.Insert();
+
+        until SalesHeader.Next() = 0;
+    end;
+
+    [TryFunction]
+    local procedure TryPostSingle(var SalesHeader: Record "Sales Header";
+                                  var PostingMgr: Codeunit "Sales-Post")
+    begin
+        PostingMgr.Run(SalesHeader);
+    end;
+}</code></pre>
+
+        <h3>Setting Up the Job Queue Entry</h3>
+        <table class="data-table">
+          <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Object Type</td><td>Codeunit</td></tr>
+            <tr><td>Object ID</td><td>50501 (Auto Post Recurring Invoices)</td></tr>
+            <tr><td>Run on Weekdays</td><td>Mon–Fri</td></tr>
+            <tr><td>Starting Time</td><td>06:00</td></tr>
+            <tr><td>Max No. of Attempts</td><td>1 (log failures, don't retry posting)</td></tr>
+            <tr><td>Inactivity Timeout</td><td>30 minutes</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="approvals">
+        <h2>Approval Workflow Integration</h2>
+        <p>
+          Business Central's built-in Approval Workflow engine handles multi-level approvals with delegations, substitutions, and due-date escalations. You can trigger it programmatically from AL or configure it through the standard Workflow setup UI.
+        </p>
+
+        <h3>Triggering an Approval Request from AL</h3>
+        <pre class="code-block"><code>codeunit 50502 "Document Approval Manager"
+{
+    procedure RequestApproval(var PurchaseHeader: Record "Purchase Header")
+    var
+        ApprovalsMgmt: Codeunit "Approvals Mgmt.";
+    begin
+        // Validate that a workflow is configured for this document type
+        if not ApprovalsMgmt.CheckPurchaseApprovalPossible(PurchaseHeader) then
+            Error('No approval workflow is configured for Purchase Orders. Contact your administrator.');
+
+        // Send the approval request — BC handles routing to the correct approver
+        ApprovalsMgmt.OnSendPurchaseDocForApproval(PurchaseHeader);
+
+        // Update document status to Pending Approval
+        PurchaseHeader.Status := PurchaseHeader.Status::"Pending Approval";
+        PurchaseHeader.Modify(true);
+    end;
+
+    procedure CancelApproval(var PurchaseHeader: Record "Purchase Header")
+    var
+        ApprovalsMgmt: Codeunit "Approvals Mgmt.";
+    begin
+        ApprovalsMgmt.OnCancelPurchaseApprovalRequest(PurchaseHeader);
+    end;
+}</code></pre>
+
+        <h3>Custom Approval Conditions</h3>
+        <pre class="code-block"><code>// Subscribe to the approval check event to inject custom routing logic
+[EventSubscriber(ObjectType::Codeunit, Codeunit::"Approvals Mgmt.",
+                 'OnPopulateApprovalEntryArgument', '', false, false)]
+local procedure SetCustomApprover(
+    var RecRef: RecordRef;
+    var ApprovalEntryArgument: Record "Approval Entry")
+var
+    PurchHeader: Record "Purchase Header";
+    VendorCategory: Code[20];
+begin
+    if RecRef.Number <> Database::"Purchase Header" then exit;
+
+    RecRef.SetTable(PurchHeader);
+    VendorCategory := GetVendorCategory(PurchHeader."Buy-from Vendor No.");
+
+    // Route to Finance Director for strategic vendors
+    if VendorCategory = 'STRATEGIC' then
+        ApprovalEntryArgument."Approver ID" := GetFinanceDirectorUserId();
+end;</code></pre>
+      </section>
+
+      <section id="notifications">
+        <h2>Email & Teams Notifications</h2>
+        <p>
+          Business Central's <code>Email</code> module (introduced in 2021 wave 1) replaces the old SMTP setup with a connector-based model. Sending a notification from AL is now straightforward and testable.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50503 "Document Notification Manager"
+{
+    procedure QueueInvoiceNotification(InvoiceNo: Code[20])
+    var
+        JobQueueEntry: Record "Job Queue Entry";
+    begin
+        // Queue the send — don't block the caller's session
+        JobQueueEntry.Init();
+        JobQueueEntry."Object Type to Run"   := JobQueueEntry."Object Type to Run"::Codeunit;
+        JobQueueEntry."Object ID to Run"     := Codeunit::"Invoice Email Sender";
+        JobQueueEntry."Parameter String"     := InvoiceNo;
+        JobQueueEntry."Earliest Start Date/Time" := CurrentDateTime() + 30000; // 30 sec delay
+        JobQueueEntry.Insert(true);
+        CODEUNIT.Run(CODEUNIT::"Job Queue - Enqueue", JobQueueEntry);
+    end;
+}
+
+codeunit 50504 "Invoice Email Sender"
+{
+    TableNo = "Job Queue Entry";
+
+    trigger OnRun()
+    var
+        InvoiceNo:   Code[20];
+        Invoice:     Record "Sales Invoice Header";
+        Email:       Codeunit Email;
+        Message:     Codeunit "Email Message";
+        Customer:    Record Customer;
+        Body:        Text;
+    begin
+        InvoiceNo := CopyStr(Rec."Parameter String", 1, 20);
+
+        if not Invoice.Get(InvoiceNo) then exit;
+        if not Customer.Get(Invoice."Sell-to Customer No.") then exit;
+        if Customer."E-Mail" = '' then exit;
+
+        Body := BuildEmailBody(Invoice);
+
+        Message.Create(Customer."E-Mail",
+                        'Invoice ' + InvoiceNo + ' from ' + CompanyName(),
+                        Body,
+                        true); // isHtml
+
+        Email.Send(Message, Enum::"Email Scenario"::Default);
+    end;
+
+    local procedure BuildEmailBody(Invoice: Record "Sales Invoice Header"): Text
+    begin
+        exit(
+            '<p>Dear ' + Invoice."Sell-to Customer Name" + ',</p>' +
+            '<p>Please find attached invoice <strong>' + Invoice."No." + '</strong> ' +
+            'dated ' + Format(Invoice."Posting Date", 0, '<Day,2>/<Month,2>/<Year4>') + '.</p>' +
+            '<p>Amount due: <strong>' + Format(Invoice.Amount, 0, '<Precision,2:2><Sign><Integer Thousand><Decimals>') + ' ' +
+            Invoice."Currency Code" + '</strong></p>' +
+            '<p>Thank you for your business.</p>'
+        );
+    end;
+}</code></pre>
+      </section>
+
+      <section id="power-automate">
+        <h2>Power Automate Triggers</h2>
+        <p>
+          For notifications to Teams, complex approval flows, or integrations with non-Microsoft systems, Power Automate is the right tool. BC fires Power Automate flows via two mechanisms: <strong>webhook subscriptions</strong> (real-time) and the <strong>Business Central connector</strong> (polling).
+        </p>
+
+        <h3>Triggering a Power Automate Flow from AL</h3>
+        <pre class="code-block"><code>codeunit 50505 "Power Automate Trigger"
+{
+    procedure TriggerFlow(FlowUrl: Text; Payload: JsonObject)
+    var
+        Client:   HttpClient;
+        Request:  HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Content:  HttpContent;
+        Headers:  HttpHeaders;
+        PayloadText: Text;
+    begin
+        Payload.WriteTo(PayloadText);
+        Content.WriteFrom(PayloadText);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Request.Method := 'POST';
+        Request.SetRequestUri(FlowUrl);
+        Request.Content := Content;
+
+        if not Client.Send(Request, Response) then
+            Error('Power Automate trigger failed — network error.');
+
+        if not Response.IsSuccessStatusCode() then
+            Error('Flow returned HTTP %1. Check the flow run history.', Response.HttpStatusCode());
+    end;
+
+    procedure BuildInvoicePayload(Invoice: Record "Sales Invoice Header"): JsonObject
+    var
+        Payload: JsonObject;
+    begin
+        Payload.Add('invoiceNo',      Invoice."No.");
+        Payload.Add('customerNo',     Invoice."Sell-to Customer No.");
+        Payload.Add('customerName',   Invoice."Sell-to Customer Name");
+        Payload.Add('amount',         Invoice.Amount);
+        Payload.Add('postingDate',    Format(Invoice."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+        Payload.Add('postedBy',       UserId());
+        exit(Payload);
+    end;
+}</code></pre>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            Store the Power Automate HTTP trigger URL in a setup table — never hardcode it in AL. Flows get recreated when moved between environments, and the URL changes. A setup table lets you update it without a code deployment.
+          </div>
+        </div>
+      </section>
+
+      <section id="monitoring">
+        <h2>Monitoring & Alerting</h2>
+        <p>Automation that runs silently in the background must surface failures clearly. Build a simple monitoring layer from day one.</p>
+
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>Job Queue Log Review</h4>
+            <p>Check the Job Queue Log page daily for entries with status <em>Error</em>. Set up a Power Automate flow to send a Teams message whenever a Job Queue Entry fails — immediate visibility without manual checks.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Automation Log Table</h4>
+            <p>Maintain a custom log table for every automated action: document number, action taken, timestamp, success/failure, error text. Give operations a page to search and filter without needing developer access.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Daily Summary Email</h4>
+            <p>A Job Queue Entry running at 07:00 emails a summary of the previous day's automation: documents posted, notifications sent, failures. One email, full picture, zero manual checking.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Azure Application Insights</h4>
+            <p>Enable Application Insights telemetry in your BC environment. Custom telemetry signals from AL (<code>LogMessage</code>) flow into your Azure workspace for dashboards, alerts, and trend analysis.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="checklist">
+        <h2>Automation Design Checklist</h2>
+        <div class="checklist">
+          <div class="check-item check-pass">Event subscribers never perform slow operations synchronously — always enqueue</div>
+          <div class="check-item check-pass">Every automated action is logged to a custom log table with timestamp and user</div>
+          <div class="check-item check-pass">Job Queue failures surface to operations within minutes via Teams / email alert</div>
+          <div class="check-item check-pass">Power Automate flow URLs and API keys stored in setup tables, not hardcoded</div>
+          <div class="check-item check-pass">Approval workflow tested with delegation and substitution scenarios</div>
+          <div class="check-item check-pass">Auto-posting codeunit is idempotent — re-running it after a crash doesn't double-post</div>
+          <div class="check-item check-pass">Email notifications have a fallback for missing customer email addresses</div>
+          <div class="check-item check-pass">All automation can be disabled per-company via a feature flag in setup</div>
+        </div>
+
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div>
+            <strong>You've reached the end of the series.</strong> The five articles — SharePoint Integration, Excel Upload, API Patterns, Performance Optimization, and Document Automation — cover the core pillars of a production Business Central implementation. Start with the pattern that matches your current pain point.
+          </div>
+        </div>
+      </section>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">Automation</span>
+          <span class="tag">Event Subscribers</span>
+          <span class="tag">Job Queue</span>
+          <span class="tag">Power Automate</span>
+          <span class="tag">Approvals</span>
+        </div>
+        <a href="index.html" class="back-link">← Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="excel-upload-sales-invoices.html">Excel Upload for Sales Invoices</a></li>
+            <li><a href="api-integration-patterns.html">API Integration Patterns</a></li>
+            <li><a href="performance-optimization.html">Performance Optimization</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">EventSubscriber</span>
+            <span class="tag">Approvals Mgmt.</span>
+            <span class="tag">Email Module</span>
+            <span class="tag">Power Automate</span>
+            <span class="tag">Job Queue</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© 2026 Ranjith</span>
+      <span>ranjithravi282@hotmail.com</span>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Integration Patterns in Business Central | Ranjith</title>
+  <meta name="description" content="Best practices for integrating external systems with Business Central APIs — authentication, data mapping, webhooks, and error handling." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">API</span>
+          <span class="read-time">13 min read</span>
+        </div>
+        <h1 class="article-title">API Integration Patterns in Business Central</h1>
+        <p class="article-subtitle">A practical guide to building reliable integrations using Business Central's standard and custom APIs — covering OAuth, custom endpoints, webhooks, idempotency, and resilient error handling.</p>
+        <div class="article-byline">
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">March 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Business Central exposes a rich REST API surface — standard OData endpoints for most entities, custom API pages for bespoke needs, and webhook subscriptions for event-driven patterns. Knowing which to use, and how to secure them properly, separates brittle integrations from ones that run for years without intervention.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#api-types">Types of BC APIs</a></li>
+          <li><a href="#auth">Authentication & OAuth 2.0</a></li>
+          <li><a href="#custom-api">Building a Custom API Page</a></li>
+          <li><a href="#calling-external">Calling External APIs from AL</a></li>
+          <li><a href="#webhooks">Webhooks & Event-Driven Patterns</a></li>
+          <li><a href="#idempotency">Idempotency & Safe Retries</a></li>
+          <li><a href="#error-handling">Error Handling Patterns</a></li>
+          <li><a href="#checklist">Production Readiness Checklist</a></li>
+        </ol>
+      </nav>
+
+      <section id="api-types">
+        <h2>Types of BC APIs</h2>
+        <p>Business Central offers three categories of API surface, each suited to different scenarios:</p>
+
+        <table class="data-table">
+          <thead><tr><th>Type</th><th>When to Use</th><th>Base URL Pattern</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Standard API v2.0</strong></td>
+              <td>Reading/writing standard entities (customers, vendors, items, invoices)</td>
+              <td><code>/api/v2.0/companies({id})/customers</code></td>
+            </tr>
+            <tr>
+              <td><strong>Custom API Pages</strong></td>
+              <td>Business-specific entities not in v2.0, or combined views</td>
+              <td><code>/api/ranjith/bc/v1.0/companies({id})/customEntity</code></td>
+            </tr>
+            <tr>
+              <td><strong>OData v4 Web Services</strong></td>
+              <td>Legacy integrations, Power BI, Excel connections</td>
+              <td><code>/ODataV4/Company('{name}')/PageName</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div><strong>Recommendation:</strong> Prefer the v2.0 API for standard entities. Use custom API pages only for entities genuinely not covered. Avoid new OData Web Service integrations — they lack versioning and are harder to deprecate.</div>
+        </div>
+      </section>
+
+      <section id="auth">
+        <h2>Authentication & OAuth 2.0</h2>
+        <p>
+          Business Central's API uses OAuth 2.0 exclusively for cloud environments. The two flows you'll encounter most are <strong>Client Credentials</strong> (service-to-service, no user) and <strong>Authorization Code</strong> (user-delegated access). For backend integrations, always use Client Credentials.
+        </p>
+
+        <h3>Acquiring a Token (Client Credentials Flow)</h3>
+        <pre class="code-block"><code>POST https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
+
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id={appClientId}
+&client_secret={appClientSecret}
+&scope=https://api.businesscentral.dynamics.com/.default</code></pre>
+
+        <p>The response contains an <code>access_token</code> valid for 3600 seconds. Pass it as a Bearer token on every API request:</p>
+
+        <pre class="code-block"><code>GET https://api.businesscentral.dynamics.com/v2.0/{tenantId}/{environment}/api/v2.0/companies
+Authorization: Bearer {access_token}
+Accept: application/json</code></pre>
+
+        <h3>Required Azure AD App Permissions</h3>
+        <table class="data-table">
+          <thead><tr><th>Permission</th><th>Type</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>Financials.ReadWrite.All</code></td><td>Application</td><td>Full API read/write access</td></tr>
+            <tr><td><code>app_access</code></td><td>Application</td><td>Required for client credentials flow in BC</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            After adding permissions in Azure AD, you must also add the app registration as an <strong>Allowed OAuth 2.0 App</strong> inside Business Central (under <em>Azure Active Directory Applications</em>) and assign it the correct BC permission sets.
+          </div>
+        </div>
+      </section>
+
+      <section id="custom-api">
+        <h2>Building a Custom API Page</h2>
+        <p>
+          When the standard v2.0 endpoints don't expose what you need, build a custom API page in AL. The page type is <code>API</code>, and BC handles the REST routing automatically — you define the entity, fields, and sub-pages.
+        </p>
+
+        <pre class="code-block"><code>page 50300 "Sales Order Upload API"
+{
+    PageType    = API;
+    APIPublisher = 'ranjith';
+    APIGroup    = 'bc';
+    APIVersion  = 'v1.0';
+    EntityName  = 'salesOrderUpload';
+    EntitySetName = 'salesOrderUploads';
+    SourceTable = "Sales Order Upload Buffer";
+    DelayedInsert = true;
+    ODataKeyFields = SystemId;
+
+    layout
+    {
+        area(Content)
+        {
+            repeater(Group)
+            {
+                field(id;              Rec.SystemId)            { }
+                field(batchNo;         Rec."Batch No.")          { }
+                field(customerNo;      Rec."Customer No.")       { }
+                field(externalDocNo;   Rec."External Doc. No.")  { }
+                field(postingDate;     Rec."Posting Date")       { }
+                field(status;          Rec.Status)               { }
+                field(errorMessage;    Rec."Error Message")      { }
+                field(postedDocNo;     Rec."Posted Doc. No.")    { }
+            }
+        }
+    }
+
+    trigger OnInsertRecord(BelowxRec: Boolean): Boolean
+    var
+        Validator: Codeunit "Sales Order Upload Validator";
+    begin
+        // Validate immediately on insert
+        Validator.ValidateRecord(Rec);
+        exit(true);
+    end;
+}</code></pre>
+
+        <p>Once published, the endpoint becomes:</p>
+        <pre class="code-block"><code>GET  /api/ranjith/bc/v1.0/companies({companyId})/salesOrderUploads
+POST /api/ranjith/bc/v1.0/companies({companyId})/salesOrderUploads
+GET  /api/ranjith/bc/v1.0/companies({companyId})/salesOrderUploads({id})</code></pre>
+      </section>
+
+      <section id="calling-external">
+        <h2>Calling External APIs from AL</h2>
+        <p>
+          AL's <code>HttpClient</code> lets you call any external REST API. The pattern is consistent: build the request, send it, check the status code, parse the response. Always wrap in a <code>[TryFunction]</code> for graceful failure.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50301 "External API Client"
+{
+    procedure GetExchangeRate(CurrencyCode: Code[10]): Decimal
+    var
+        Client:   HttpClient;
+        Request:  HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Headers:  HttpHeaders;
+        JsonObj:  JsonObject;
+        RateToken: JsonToken;
+        ResponseText: Text;
+        Rate: Decimal;
+    begin
+        Request.Method := 'GET';
+        Request.SetRequestUri(
+            'https://api.exchangeratesapi.io/v1/latest?base=EUR&symbols=' + CurrencyCode);
+
+        Request.GetHeaders(Headers);
+        Headers.Add('Accept', 'application/json');
+        Headers.Add('Authorization', 'Bearer ' + GetApiKey());
+
+        if not Client.Send(Request, Response) then
+            Error('Exchange rate API call failed — network error.');
+
+        if not Response.IsSuccessStatusCode() then
+            Error('Exchange rate API returned status %1.', Response.HttpStatusCode());
+
+        Response.Content.ReadAs(ResponseText);
+        JsonObj.ReadFrom(ResponseText);
+
+        if JsonObj.SelectToken('rates.' + CurrencyCode, RateToken) then
+            Rate := RateToken.AsValue().AsDecimal()
+        else
+            Error('Currency code %1 not found in response.', CurrencyCode);
+
+        exit(Rate);
+    end;
+
+    local procedure GetApiKey(): Text
+    var
+        Key: Text;
+    begin
+        if not IsolatedStorage.Get('ExchangeRateApiKey', DataScope::Company, Key) then
+            Error('Exchange rate API key is not configured.');
+        exit(Key);
+    end;
+}</code></pre>
+      </section>
+
+      <section id="webhooks">
+        <h2>Webhooks & Event-Driven Patterns</h2>
+        <p>
+          Instead of polling BC every few minutes, webhook subscriptions push notifications to your external system the moment something changes. BC supports webhooks on any API entity via the <code>subscriptions</code> endpoint.
+        </p>
+
+        <h3>Creating a Webhook Subscription</h3>
+        <pre class="code-block"><code>POST /api/v2.0/subscriptions
+
+{
+  "notificationUrl": "https://your-service.com/bc-webhook",
+  "resource":        "/api/v2.0/companies({id})/salesInvoices",
+  "clientState":     "your-secret-validation-token"
+}</code></pre>
+
+        <p>BC will immediately send a validation request to your <code>notificationUrl</code>. Your endpoint must echo back the <code>validationToken</code> query parameter as plain text with a <code>200 OK</code> response.</p>
+
+        <h3>Notification Payload</h3>
+        <pre class="code-block"><code>{
+  "value": [
+    {
+      "subscriptionId": "abc123",
+      "clientState":    "your-secret-validation-token",
+      "changeType":     "updated",
+      "resource":       "/api/v2.0/companies({id})/salesInvoices({invoiceId})",
+      "resourceData": {
+        "id": "{invoiceId}"
+      }
+    }
+  ]
+}</code></pre>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            <strong>Always verify <code>clientState</code></strong> on every incoming notification before processing. This prevents replay attacks from unauthenticated callers. Treat any notification with a mismatched clientState as invalid and return <code>401</code>.
+          </div>
+        </div>
+
+        <h3>Renewing Subscriptions</h3>
+        <p>Webhook subscriptions expire after <strong>3 days</strong> by default. Build a scheduled renewal — a Job Queue Entry that runs daily and PATCHes each subscription's expiry date forward:</p>
+
+        <pre class="code-block"><code>PATCH /api/v2.0/subscriptions({subscriptionId})
+
+{
+  "notificationUrl": "https://your-service.com/bc-webhook"
+}</code></pre>
+      </section>
+
+      <section id="idempotency">
+        <h2>Idempotency & Safe Retries</h2>
+        <p>
+          Network failures happen. Your integration must handle the same event being delivered more than once without creating duplicate records. Two patterns work well:
+        </p>
+
+        <h3>Pattern 1 — Idempotency Key</h3>
+        <p>Pass a unique key with every write operation. If you've already processed that key, return the cached result instead of re-executing:</p>
+        <pre class="code-block"><code>// Store processed keys with their result
+table 50302 "Idempotency Log"
+{
+    fields
+    {
+        field(1; "Idempotency Key"; Text[100]) { }
+        field(2; "Result";          Text[250]) { }
+        field(3; "Created At";      DateTime)  { }
+    }
+    keys { key(PK; "Idempotency Key") { Clustered = true; } }
+}
+
+// Before processing any inbound request:
+procedure IsAlreadyProcessed(Key: Text; var Result: Text): Boolean
+var
+    Log: Record "Idempotency Log";
+begin
+    if Log.Get(Key) then begin
+        Result := Log.Result;
+        exit(true);
+    end;
+    exit(false);
+end;</code></pre>
+
+        <h3>Pattern 2 — External Doc. No. Uniqueness Check</h3>
+        <p>For invoice creation, check <code>External Document No.</code> uniqueness per customer before inserting. If it already exists, return the existing BC document number instead of failing or creating a duplicate.</p>
+      </section>
+
+      <section id="error-handling">
+        <h2>Error Handling Patterns</h2>
+
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>Structured Error Responses</h4>
+            <p>Custom API pages should return JSON error bodies, not plain text. Use <code>Error()</code> with meaningful messages — BC wraps them in the standard OData error envelope automatically.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Exponential Back-off</h4>
+            <p>On <code>429 Too Many Requests</code> or <code>503</code>, wait and retry. Start at 500ms, double each attempt. Cap at 3 retries before alerting operations.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Dead Letter Queue</h4>
+            <p>Any webhook notification that fails processing after 3 retries should land in a dead-letter table. Operations can inspect and manually re-trigger without losing the event.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Correlation IDs</h4>
+            <p>Log the <code>x-ms-correlation-request-id</code> header from every BC API response. When raising a Microsoft support ticket, this header is essential for tracing the server-side log.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="checklist">
+        <h2>Production Readiness Checklist</h2>
+        <div class="checklist">
+          <div class="check-item check-pass">OAuth token cached and refreshed before expiry — no per-request token calls</div>
+          <div class="check-item check-pass">Client Secret stored in Isolated Storage, not in setup table fields</div>
+          <div class="check-item check-pass">Webhook <code>clientState</code> validated on every inbound notification</div>
+          <div class="check-item check-pass">Webhook subscriptions renewed daily via Job Queue</div>
+          <div class="check-item check-pass">Idempotency keys or External Doc. No. uniqueness enforced</div>
+          <div class="check-item check-pass">Exponential back-off implemented for 429 / 503 responses</div>
+          <div class="check-item check-pass">Dead-letter table for failed webhook events</div>
+          <div class="check-item check-pass">Correlation IDs logged for every API response</div>
+          <div class="check-item check-pass">Custom API page versioned (v1.0) — never modify a live API's fields</div>
+        </div>
+
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div><strong>What's next?</strong> Read <em>Performance Optimization Techniques</em> for how to handle high-volume API traffic without hitting BC's query limits.</div>
+        </div>
+      </section>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">API</span>
+          <span class="tag">OAuth 2.0</span>
+          <span class="tag">Webhooks</span>
+          <span class="tag">AL Code</span>
+          <span class="tag">HttpClient</span>
+        </div>
+        <a href="index.html" class="back-link">← Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="excel-upload-sales-invoices.html">Excel Upload for Sales Invoices</a></li>
+            <li><a href="performance-optimization.html">Performance Optimization</a></li>
+            <li><a href="automating-document-processing.html">Automating Document Processing</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">OData</span>
+            <span class="tag">REST API</span>
+            <span class="tag">Webhooks</span>
+            <span class="tag">HttpClient</span>
+            <span class="tag">Azure AD</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© 2026 Ranjith</span>
+      <span>ranjithravi282@hotmail.com</span>
+    </div>
+  </footer>
+</body>
+</html>

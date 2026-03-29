@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel Upload for Sales Invoices | Ranjith</title>
+  <meta name="description" content="Designing a scalable bulk upload solution for Sales Invoices in Business Central — validation, error handling, and reprocessing via Job Queue." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">Excel Upload</span>
+          <span class="read-time">14 min read</span>
+        </div>
+        <h1 class="article-title">Excel Upload for Sales Invoices in Business Central</h1>
+        <p class="article-subtitle">Designing a robust, scalable bulk-upload pipeline with row-level validation, structured error reporting, and background reprocessing — without touching the BC database until every row is clean.</p>
+        <div class="article-byline">
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">March 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Bulk invoice entry is one of the most common pain points in any BC implementation. Finance teams wrestle with Excel files every month, manually keying hundreds of rows into the system. This guide builds the entire upload pipeline end-to-end — from file parsing to posting — with every failure mode handled.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#problem">The Problem with Manual Entry</a></li>
+          <li><a href="#excel-template">Excel Template Design</a></li>
+          <li><a href="#staging">Staging Table Approach</a></li>
+          <li><a href="#al-parsing">AL Code: Parsing the File</a></li>
+          <li><a href="#validation">Row-Level Validation</a></li>
+          <li><a href="#error-report">Error Report Generation</a></li>
+          <li><a href="#posting">Background Posting via Job Queue</a></li>
+          <li><a href="#tips">Tips & Edge Cases</a></li>
+        </ol>
+      </nav>
+
+      <section id="problem">
+        <h2>The Problem with Manual Entry</h2>
+        <p>
+          When a client sends 300 invoices at month-end, the standard Business Central UI handles them one at a time. A data entry operator might take two full days to key all of them — with inevitable typos, wrong G/L accounts, and missing dimensions. Overtime costs mount. Errors require credit notes. Auditors find inconsistencies.
+        </p>
+        <p>
+          A well-built upload tool collapses that two-day effort into twenty minutes: the operator drops an Excel file, reviews the validation report, fixes any issues, and hits Post. That's the goal this guide delivers.
+        </p>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div><strong>Design principle:</strong> Never write a single BC record until <em>all</em> rows have passed validation. Partial imports create reconciliation nightmares.</div>
+        </div>
+      </section>
+
+      <section id="excel-template">
+        <h2>Excel Template Design</h2>
+        <p>
+          The template is the contract between the finance team and the system. Keep it opinionated: named columns, locked headers, dropdown validation for key fields. When users deviate from the template, parsing fails fast with a clear message.
+        </p>
+
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Column Name</th><th>Type</th><th>Mandatory</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A</td><td>Customer No.</td><td>Code[20]</td><td>✅</td><td>Must exist in BC Customer table</td></tr>
+            <tr><td>B</td><td>Posting Date</td><td>Date</td><td>✅</td><td>Format: DD/MM/YYYY</td></tr>
+            <tr><td>C</td><td>Document Date</td><td>Date</td><td>✅</td><td>Format: DD/MM/YYYY</td></tr>
+            <tr><td>D</td><td>External Doc. No.</td><td>Text[35]</td><td>✅</td><td>Unique per customer</td></tr>
+            <tr><td>E</td><td>Item No.</td><td>Code[20]</td><td>✅</td><td>Must exist in BC Item table</td></tr>
+            <tr><td>F</td><td>Description</td><td>Text[100]</td><td>❌</td><td>Defaults to Item Description if blank</td></tr>
+            <tr><td>G</td><td>Quantity</td><td>Decimal</td><td>✅</td><td>Must be &gt; 0</td></tr>
+            <tr><td>H</td><td>Unit Price</td><td>Decimal</td><td>✅</td><td>Excl. VAT</td></tr>
+            <tr><td>I</td><td>Line Discount %</td><td>Decimal</td><td>❌</td><td>0–100</td></tr>
+            <tr><td>J</td><td>Dimension 1 Code</td><td>Code[20]</td><td>❌</td><td>Department code</td></tr>
+            <tr><td>K</td><td>Dimension 2 Code</td><td>Code[20]</td><td>❌</td><td>Project code</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <strong>Column order is fixed.</strong> Do not add or remove columns from the template. The parser reads by position, not by header name, to avoid issues with localised column names.
+          </div>
+        </div>
+      </section>
+
+      <section id="staging">
+        <h2>Staging Table Approach</h2>
+        <p>
+          Never parse directly into <code>Sales Header</code> and <code>Sales Line</code>. Use a staging table as an intermediate buffer. This decouples parsing from validation, enables row-level error tracking, and allows reprocessing of failed rows without re-uploading the entire file.
+        </p>
+
+        <h3>Table: Sales Invoice Upload Buffer</h3>
+        <pre class="code-block"><code>table 50200 "Sales Invoice Upload Buffer"
+{
+    DataClassification = CustomerContent;
+
+    fields
+    {
+        field(1;  "Entry No.";          Integer)        { AutoIncrement = true; }
+        field(2;  "Upload Batch No.";   Code[20])       { }
+        field(3;  "Row No.";            Integer)        { }
+        field(4;  "Customer No.";       Code[20])       { }
+        field(5;  "Posting Date";       Date)           { }
+        field(6;  "Document Date";      Date)           { }
+        field(7;  "External Doc. No.";  Text[35])       { }
+        field(8;  "Item No.";           Code[20])       { }
+        field(9;  "Description";        Text[100])      { }
+        field(10; "Quantity";           Decimal)        { }
+        field(11; "Unit Price";         Decimal)        { }
+        field(12; "Line Discount %";    Decimal)        { }
+        field(13; "Dimension 1 Code";   Code[20])       { }
+        field(14; "Dimension 2 Code";   Code[20])       { }
+        field(15; Status;               Enum "Upload Row Status") { }
+        field(16; "Error Message";      Text[2048])     { }
+        field(17; "Created At";         DateTime)       { }
+        field(18; "Processed At";       DateTime)       { }
+        field(19; "BC Invoice No.";     Code[20])       { }
+    }
+
+    keys
+    {
+        key(PK; "Entry No.") { Clustered = true; }
+        key(Batch; "Upload Batch No.", Status) { }
+        key(Row; "Upload Batch No.", "Row No.") { }
+    }
+}</code></pre>
+
+        <h3>Enum: Upload Row Status</h3>
+        <pre class="code-block"><code>enum 50200 "Upload Row Status"
+{
+    value(0; Pending)   { Caption = 'Pending'; }
+    value(1; Valid)     { Caption = 'Valid'; }
+    value(2; Invalid)   { Caption = 'Invalid'; }
+    value(3; Posted)    { Caption = 'Posted'; }
+    value(4; Failed)    { Caption = 'Failed'; }
+}</code></pre>
+      </section>
+
+      <section id="al-parsing">
+        <h2>AL Code: Parsing the File</h2>
+        <p>
+          Business Central's <code>ExcelBuffer</code> table handles reading <code>.xlsx</code> files without any external libraries. The parser reads the sheet row by row, maps each cell to a staging buffer record, and assigns a batch number for tracking.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50200 "Sales Invoice Upload Parser"
+{
+    procedure ParseAndStage(FileInStream: InStream; var BatchNo: Code[20]): Integer
+    var
+        ExcelBuf: Record "Excel Buffer" temporary;
+        Buffer:   Record "Sales Invoice Upload Buffer";
+        RowCount: Integer;
+        LastRow:  Integer;
+        RowNo:    Integer;
+    begin
+        // Generate a unique batch identifier
+        BatchNo := CopyStr(Format(CreateGuid()), 1, 20);
+
+        // Load the Excel file into the temporary buffer
+        ExcelBuf.LockTable();
+        ExcelBuf.OpenBookStream(FileInStream, 'Invoices'); // sheet name
+        ExcelBuf.ReadSheet();
+
+        // Find the last row with data
+        ExcelBuf.SetFilter("Row No.", '>1'); // skip header row
+        if not ExcelBuf.FindLast() then
+            Error('The uploaded file contains no data rows.');
+        LastRow := ExcelBuf."Row No.";
+
+        // Parse each data row (row 1 = header, data starts at row 2)
+        for RowNo := 2 to LastRow do begin
+            Buffer.Init();
+            Buffer."Upload Batch No." := BatchNo;
+            Buffer."Row No."          := RowNo - 1; // 1-based data row
+            Buffer."Customer No."     := GetCellText(ExcelBuf, RowNo, 1);
+            Buffer."Posting Date"     := GetCellDate(ExcelBuf, RowNo, 2);
+            Buffer."Document Date"    := GetCellDate(ExcelBuf, RowNo, 3);
+            Buffer."External Doc. No." := GetCellText(ExcelBuf, RowNo, 4);
+            Buffer."Item No."         := GetCellText(ExcelBuf, RowNo, 5);
+            Buffer.Description        := GetCellText(ExcelBuf, RowNo, 6);
+            Buffer.Quantity           := GetCellDecimal(ExcelBuf, RowNo, 7);
+            Buffer."Unit Price"       := GetCellDecimal(ExcelBuf, RowNo, 8);
+            Buffer."Line Discount %"  := GetCellDecimal(ExcelBuf, RowNo, 9);
+            Buffer."Dimension 1 Code" := GetCellText(ExcelBuf, RowNo, 10);
+            Buffer."Dimension 2 Code" := GetCellText(ExcelBuf, RowNo, 11);
+            Buffer.Status             := Buffer.Status::Pending;
+            Buffer."Created At"       := CurrentDateTime();
+            Buffer.Insert();
+            RowCount += 1;
+        end;
+
+        exit(RowCount);
+    end;
+
+    local procedure GetCellText(var ExcelBuf: Record "Excel Buffer" temporary;
+                                Row: Integer; Col: Integer): Text
+    begin
+        if ExcelBuf.Get(Row, Col) then
+            exit(ExcelBuf."Cell Value as Text");
+        exit('');
+    end;
+
+    local procedure GetCellDate(var ExcelBuf: Record "Excel Buffer" temporary;
+                                Row: Integer; Col: Integer): Date
+    var
+        DateText: Text;
+        ParsedDate: Date;
+    begin
+        DateText := GetCellText(ExcelBuf, Row, Col);
+        if DateText = '' then exit(0D);
+        if Evaluate(ParsedDate, DateText) then
+            exit(ParsedDate);
+        exit(0D);
+    end;
+
+    local procedure GetCellDecimal(var ExcelBuf: Record "Excel Buffer" temporary;
+                                   Row: Integer; Col: Integer): Decimal
+    var
+        Val: Decimal;
+    begin
+        if Evaluate(Val, GetCellText(ExcelBuf, Row, Col)) then
+            exit(Val);
+        exit(0);
+    end;
+}</code></pre>
+      </section>
+
+      <section id="validation">
+        <h2>Row-Level Validation</h2>
+        <p>
+          After staging, the validator sweeps every row and marks it <code>Valid</code> or <code>Invalid</code>. Validation runs in a single pass with a structured error accumulator — multiple errors per row are captured and concatenated so users fix everything in one go, not one error at a time.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50201 "Sales Invoice Upload Validator"
+{
+    procedure ValidateBatch(BatchNo: Code[20]): Boolean
+    var
+        Buffer:   Record "Sales Invoice Upload Buffer";
+        HasError: Boolean;
+    begin
+        Buffer.SetRange("Upload Batch No.", BatchNo);
+        Buffer.SetRange(Status, Buffer.Status::Pending);
+
+        if not Buffer.FindSet(true) then
+            exit(true);
+
+        repeat
+            ValidateRow(Buffer);
+            if Buffer.Status = Buffer.Status::Invalid then
+                HasError := true;
+        until Buffer.Next() = 0;
+
+        exit(not HasError);
+    end;
+
+    local procedure ValidateRow(var Buffer: Record "Sales Invoice Upload Buffer")
+    var
+        Customer: Record Customer;
+        Item:     Record Item;
+        DimValue: Record "Dimension Value";
+        DimSetup: Record "General Ledger Setup";
+        Errors:   List of [Text];
+        ErrText:  Text;
+    begin
+        // Customer validation
+        if Buffer."Customer No." = '' then
+            Errors.Add('Customer No. is mandatory.')
+        else if not Customer.Get(Buffer."Customer No.") then
+            Errors.Add(StrSubstNo('Customer "%1" does not exist.', Buffer."Customer No."));
+
+        // Posting Date
+        if Buffer."Posting Date" = 0D then
+            Errors.Add('Posting Date is missing or invalid.');
+
+        // Document Date
+        if Buffer."Document Date" = 0D then
+            Errors.Add('Document Date is missing or invalid.');
+
+        // External Doc. No.
+        if Buffer."External Doc. No." = '' then
+            Errors.Add('External Document No. is mandatory.');
+
+        // Item validation
+        if Buffer."Item No." = '' then
+            Errors.Add('Item No. is mandatory.')
+        else if not Item.Get(Buffer."Item No.") then
+            Errors.Add(StrSubstNo('Item "%1" does not exist.', Buffer."Item No."))
+        else if Item.Blocked then
+            Errors.Add(StrSubstNo('Item "%1" is blocked.', Buffer."Item No."));
+
+        // Quantity
+        if Buffer.Quantity <= 0 then
+            Errors.Add('Quantity must be greater than zero.');
+
+        // Unit Price
+        if Buffer."Unit Price" < 0 then
+            Errors.Add('Unit Price cannot be negative.');
+
+        // Line Discount %
+        if (Buffer."Line Discount %" < 0) or (Buffer."Line Discount %" > 100) then
+            Errors.Add('Line Discount % must be between 0 and 100.');
+
+        // Dimension validation
+        DimSetup.Get();
+        if Buffer."Dimension 1 Code" <> '' then
+            if not DimValue.Get(DimSetup."Global Dimension 1 Code", Buffer."Dimension 1 Code") then
+                Errors.Add(StrSubstNo('Dimension 1 value "%1" is invalid.', Buffer."Dimension 1 Code"));
+
+        // Set status
+        if Errors.Count = 0 then begin
+            Buffer.Status := Buffer.Status::Valid;
+            Buffer."Error Message" := '';
+        end else begin
+            Buffer.Status := Buffer.Status::Invalid;
+            foreach ErrText in Errors do
+                Buffer."Error Message" += '• ' + ErrText + '  ';
+        end;
+
+        Buffer."Processed At" := CurrentDateTime();
+        Buffer.Modify();
+    end;
+}</code></pre>
+
+        <h3>Validation Rules Summary</h3>
+        <div class="checklist">
+          <div class="check-item check-pass">Customer No. exists and is not blocked</div>
+          <div class="check-item check-pass">Posting Date and Document Date are valid, non-zero dates</div>
+          <div class="check-item check-pass">External Document No. is present and unique per customer</div>
+          <div class="check-item check-pass">Item No. exists and is not blocked</div>
+          <div class="check-item check-pass">Quantity is greater than zero</div>
+          <div class="check-item check-pass">Unit Price is non-negative</div>
+          <div class="check-item check-pass">Line Discount % is between 0 and 100</div>
+          <div class="check-item check-pass">Dimension values exist in the dimension table</div>
+        </div>
+      </section>
+
+      <section id="error-report">
+        <h2>Error Report Generation</h2>
+        <p>
+          After validation, generate a downloadable error report. This gives the finance team a single file to work from — every invalid row, every error message, ready to fix and re-upload.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50202 "Sales Invoice Upload Reporter"
+{
+    procedure ExportErrorReport(BatchNo: Code[20])
+    var
+        Buffer:   Record "Sales Invoice Upload Buffer";
+        ExcelBuf: Record "Excel Buffer" temporary;
+        RowNo:    Integer;
+        OutStream: OutStream;
+        FileName: Text;
+    begin
+        Buffer.SetRange("Upload Batch No.", BatchNo);
+        Buffer.SetRange(Status, Buffer.Status::Invalid);
+
+        if not Buffer.FindSet() then begin
+            Message('No validation errors found. All rows are valid.');
+            exit;
+        end;
+
+        // Write header row
+        RowNo := 1;
+        AddCell(ExcelBuf, RowNo, 1, 'Row No.',       true);
+        AddCell(ExcelBuf, RowNo, 2, 'Customer No.',   true);
+        AddCell(ExcelBuf, RowNo, 3, 'External Doc.',  true);
+        AddCell(ExcelBuf, RowNo, 4, 'Item No.',       true);
+        AddCell(ExcelBuf, RowNo, 5, 'Error(s)',       true);
+
+        // Write error rows
+        repeat
+            RowNo += 1;
+            AddCell(ExcelBuf, RowNo, 1, Format(Buffer."Row No."),         false);
+            AddCell(ExcelBuf, RowNo, 2, Buffer."Customer No.",            false);
+            AddCell(ExcelBuf, RowNo, 3, Buffer."External Doc. No.",       false);
+            AddCell(ExcelBuf, RowNo, 4, Buffer."Item No.",                false);
+            AddCell(ExcelBuf, RowNo, 5, Buffer."Error Message",           false);
+        until Buffer.Next() = 0;
+
+        // Download the report
+        FileName := 'Upload_Errors_' + BatchNo + '.xlsx';
+        ExcelBuf.CreateNewBook('Errors');
+        ExcelBuf.WriteSheet('Validation Errors', CompanyName(), UserId());
+        ExcelBuf.CloseBook();
+        ExcelBuf.SetFriendlyFilename(FileName);
+        ExcelBuf.OpenExcel();
+    end;
+
+    local procedure AddCell(var ExcelBuf: Record "Excel Buffer" temporary;
+                            Row: Integer; Col: Integer; Value: Text; Bold: Boolean)
+    begin
+        ExcelBuf.Init();
+        ExcelBuf.Validate("Row No.", Row);
+        ExcelBuf.Validate("Column No.", Col);
+        ExcelBuf."Cell Value as Text" := Value;
+        ExcelBuf.Bold := Bold;
+        ExcelBuf.Insert();
+    end;
+}</code></pre>
+      </section>
+
+      <section id="posting">
+        <h2>Background Posting via Job Queue</h2>
+        <p>
+          Once all rows are marked <code>Valid</code>, posting is handed off to a Job Queue Entry. This frees the user's browser session immediately and ensures posting runs in a clean background context — important for large batches where transaction timeouts are a risk.
+        </p>
+
+        <pre class="code-block"><code>codeunit 50203 "Sales Invoice Upload Poster"
+{
+    TableNo = "Job Queue Entry";
+
+    trigger OnRun()
+    var
+        Buffer:  Record "Sales Invoice Upload Buffer";
+        BatchNo: Code[20];
+    begin
+        BatchNo := Rec."Parameter String";
+
+        Buffer.SetRange("Upload Batch No.", BatchNo);
+        Buffer.SetRange(Status, Buffer.Status::Valid);
+
+        if not Buffer.FindSet(true) then
+            exit;
+
+        repeat
+            Commit(); // each invoice in its own transaction
+            if not TryPostInvoice(Buffer) then begin
+                Buffer.Status        := Buffer.Status::Failed;
+                Buffer."Error Message" := GetLastErrorText();
+                Buffer."Processed At"  := CurrentDateTime();
+                Buffer.Modify();
+            end;
+        until Buffer.Next() = 0;
+    end;
+
+    [TryFunction]
+    local procedure TryPostInvoice(var Buffer: Record "Sales Invoice Upload Buffer")
+    var
+        SalesHeader: Record "Sales Header";
+        SalesLine:   Record "Sales Line";
+        Item:        Record Item;
+        PostedNo:    Code[20];
+    begin
+        // Create Sales Invoice Header
+        SalesHeader.Init();
+        SalesHeader."Document Type" := SalesHeader."Document Type"::Invoice;
+        SalesHeader.Insert(true);
+        SalesHeader.Validate("Sell-to Customer No.", Buffer."Customer No.");
+        SalesHeader.Validate("Posting Date",         Buffer."Posting Date");
+        SalesHeader.Validate("Document Date",        Buffer."Document Date");
+        SalesHeader."External Document No."        := Buffer."External Doc. No.";
+
+        if Buffer."Dimension 1 Code" <> '' then
+            SalesHeader.Validate("Shortcut Dimension 1 Code", Buffer."Dimension 1 Code");
+        if Buffer."Dimension 2 Code" <> '' then
+            SalesHeader.Validate("Shortcut Dimension 2 Code", Buffer."Dimension 2 Code");
+        SalesHeader.Modify(true);
+
+        // Create Sales Line
+        SalesLine.Init();
+        SalesLine."Document Type" := SalesHeader."Document Type";
+        SalesLine."Document No."  := SalesHeader."No.";
+        SalesLine."Line No."      := 10000;
+        SalesLine.Insert(true);
+        SalesLine.Validate(Type, SalesLine.Type::Item);
+        SalesLine.Validate("No.", Buffer."Item No.");
+
+        if Buffer.Description <> '' then
+            SalesLine.Description := Buffer.Description;
+
+        SalesLine.Validate(Quantity,          Buffer.Quantity);
+        SalesLine.Validate("Unit Price",      Buffer."Unit Price");
+        SalesLine.Validate("Line Discount %", Buffer."Line Discount %");
+        SalesLine.Modify(true);
+
+        // Post
+        PostedNo := CODEUNIT.Run(CODEUNIT::"Sales-Post", SalesHeader) ?
+                    SalesHeader."Last Posting No." : '';
+
+        // Update buffer
+        Buffer.Status          := Buffer.Status::Posted;
+        Buffer."BC Invoice No." := PostedNo;
+        Buffer."Processed At"  := CurrentDateTime();
+        Buffer.Modify();
+    end;
+}</code></pre>
+
+        <h3>Enqueueing the Job</h3>
+        <pre class="code-block"><code>procedure EnqueuePosting(BatchNo: Code[20])
+var
+    JobQueueEntry: Record "Job Queue Entry";
+begin
+    JobQueueEntry.Init();
+    JobQueueEntry."Object Type to Run"     := JobQueueEntry."Object Type to Run"::Codeunit;
+    JobQueueEntry."Object ID to Run"       := Codeunit::"Sales Invoice Upload Poster";
+    JobQueueEntry."Parameter String"       := BatchNo;
+    JobQueueEntry.Description             := 'Sales Invoice Upload – Batch ' + BatchNo;
+    JobQueueEntry."Maximum No. of Attempts to Run" := 1;
+    JobQueueEntry.Insert(true);
+    CODEUNIT.Run(CODEUNIT::"Job Queue - Enqueue", JobQueueEntry);
+    Message('Posting started in background. Batch: %1', BatchNo);
+end;</code></pre>
+      </section>
+
+      <section id="tips">
+        <h2>Tips & Edge Cases</h2>
+
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>Duplicate Detection</h4>
+            <p>Before posting, check if a Sales Invoice with the same External Doc. No. and Customer already exists. Block the row with a clear message rather than creating a duplicate.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Multi-Line Invoices</h4>
+            <p>Group rows by External Doc. No. per customer. All rows sharing the same External Doc. No. become lines on a single invoice header — don't create a new header per row.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Batch Cleanup</h4>
+            <p>Add a scheduled cleanup codeunit that deletes staging records older than 30 days. Staging tables grow fast — don't let them become technical debt.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Partial Reprocessing</h4>
+            <p>After fixing errors, allow users to reprocess only the <code>Invalid</code> rows of a batch rather than re-uploading the whole file. Filter the batch by status before validation.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div>
+            <strong>What's next?</strong> Read <em>API Integration Patterns</em> for how to expose upload endpoints for external systems that need to push invoices programmatically instead of via Excel.
+          </div>
+        </div>
+      </section>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">Excel Upload</span>
+          <span class="tag">Staging Table</span>
+          <span class="tag">AL Code</span>
+          <span class="tag">Job Queue</span>
+          <span class="tag">Validation</span>
+        </div>
+        <a href="index.html" class="back-link">← Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="api-integration-patterns.html">API Integration Patterns</a></li>
+            <li><a href="performance-optimization.html">Performance Optimization</a></li>
+            <li><a href="automating-document-processing.html">Automating Document Processing</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">ExcelBuffer</span>
+            <span class="tag">Staging Table</span>
+            <span class="tag">Job Queue</span>
+            <span class="tag">TryFunction</span>
+            <span class="tag">Sales-Post</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© 2026 Ranjith</span>
+      <span>ranjithravi282@hotmail.com</span>
+    </div>
+  </footer>
+
+</body>
+</html>

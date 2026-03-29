@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Performance Optimization in Business Central | Ranjith</title>
+  <meta name="description" content="Practical AL performance techniques — efficient queries, key design, background processing, and profiling with the AL Profiler." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">Performance</span>
+          <span class="read-time">15 min read</span>
+        </div>
+        <h1 class="article-title">Performance Optimization Techniques in Business Central</h1>
+        <p class="article-subtitle">From table key design and efficient SetFilter patterns to partial records, background processing, and profiling — a complete toolkit for writing AL that stays fast at scale.</p>
+        <div class="article-byline">
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">March 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Performance issues in Business Central rarely appear in development. They show up three months after go-live, when the ledger table has two million rows and the month-end close report takes twelve minutes to open. This guide fixes those problems before they happen.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#keys">Table Key Design</a></li>
+          <li><a href="#filters">Efficient Filter Patterns</a></li>
+          <li><a href="#partial">Partial Records</a></li>
+          <li><a href="#loops">Loop & Commit Patterns</a></li>
+          <li><a href="#background">Background Processing</a></li>
+          <li><a href="#profiling">Profiling with AL Profiler</a></li>
+          <li><a href="#pages">Page & Query Performance</a></li>
+          <li><a href="#antipatterns">Common Anti-Patterns</a></li>
+        </ol>
+      </nav>
+
+      <section id="keys">
+        <h2>Table Key Design</h2>
+        <p>
+          Every filter you write in AL maps to a SQL WHERE clause. If that clause can't use an index, SQL Server scans every row in the table. At scale, unindexed filters on large tables are the single most common cause of BC performance problems.
+        </p>
+
+        <h3>Rules for Key Design</h3>
+        <ul>
+          <li>Keys should reflect your actual <code>SetRange</code> / <code>SetFilter</code> call patterns — look at the code first, then design the keys.</li>
+          <li>Put the most <em>selective</em> field first in a composite key — the field that narrows results the most.</li>
+          <li>Include <code>SumIndexFields</code> on keys used for <code>CalcFields</code> / <code>CalcSums</code> — this creates SQL computed columns instead of aggregating on the fly.</li>
+          <li>Avoid creating keys for every possible filter combination — each key has a write cost on insert/modify.</li>
+        </ul>
+
+        <pre class="code-block"><code>table 50400 "Invoice Upload Log"
+{
+    fields { ... }
+
+    keys
+    {
+        // Clustered primary key — used for single-record Gets
+        key(PK; "Entry No.") { Clustered = true; }
+
+        // Used for: SetRange("Batch No."); SetRange(Status)
+        // Most selective field first: Status has few values, so Batch No. leads
+        key(BatchStatus; "Batch No.", Status) { }
+
+        // Used for CalcSums on Amount — SumIndexFields avoids table scan
+        key(CustomerDate; "Customer No.", "Posting Date")
+        {
+            SumIndexFields = Amount, "VAT Amount";
+        }
+
+        // Used for cleanup job: SetRange("Created At") for old record deletion
+        key(CreatedAt; "Created At") { }
+    }
+}</code></pre>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <strong>Avoid MaintainSiftIndex = false</strong> on keys with SumIndexFields unless you have a specific reason. It disables the SQL index and forces aggregation queries at read time.
+          </div>
+        </div>
+      </section>
+
+      <section id="filters">
+        <h2>Efficient Filter Patterns</h2>
+        <p>The way you write filters in AL directly controls whether SQL uses an index or does a table scan. The difference can be orders of magnitude in query time.</p>
+
+        <h3>SetRange vs SetFilter</h3>
+        <pre class="code-block"><code>// ✅ GOOD — SetRange maps directly to a SQL range scan (uses index)
+Rec.SetRange("Customer No.", 'C001');
+Rec.SetRange("Posting Date", DMY2Date(1,1,2026), DMY2Date(31,3,2026));
+
+// ✅ GOOD — SetRange with a single value (equality, most efficient)
+Rec.SetRange(Status, Status::Posted);
+
+// ⚠️ CAREFUL — SetFilter with wildcards can prevent index use
+Rec.SetFilter("Customer No.", 'C*');     // leading wildcard is OK
+Rec.SetFilter("Customer No.", '*001');   // trailing wildcard → table scan
+
+// ❌ BAD — Field expression in filter → always a table scan
+Rec.SetFilter(Amount, '>%1', SomeCalculatedValue);
+// Better: compute the threshold first, then use SetRange
+MinAmount := ComputeMinAmount();
+Rec.SetRange(Amount, MinAmount, MaxValue);</code></pre>
+
+        <h3>FindSet vs FindFirst vs Get</h3>
+        <pre class="code-block"><code>// ✅ Use Get() when you know the primary key — fastest possible lookup
+if Rec.Get(PrimaryKeyValue) then ...
+
+// ✅ Use FindFirst() when you only need the first match — adds TOP 1 to SQL
+if Rec.FindFirst() then ...
+
+// ✅ Use FindSet() for iterating multiple records
+if Rec.FindSet() then
+    repeat
+        ...
+    until Rec.Next() = 0;
+
+// ❌ BAD — FindSet() when you only need to check existence
+// This reads all matching rows into the cursor unnecessarily
+if Rec.FindSet() then
+    DoSomethingOnce();
+
+// ✅ GOOD — Use IsEmpty() or FindFirst() for existence checks
+if not Rec.IsEmpty() then ...</code></pre>
+      </section>
+
+      <section id="partial">
+        <h2>Partial Records</h2>
+        <p>
+          By default, <code>FindSet()</code> fetches every field in the table. If your table has BLOB fields, large text fields, or many columns you don't need, you're loading megabytes of data you'll never use. <strong>Partial records</strong> let you specify exactly which fields to load.
+        </p>
+
+        <pre class="code-block"><code>// ❌ Without partial records — loads ALL fields including large BLOBs
+Rec.SetRange(Status, Status::Pending);
+if Rec.FindSet() then
+    repeat
+        TotalAmount += Rec.Amount;
+    until Rec.Next() = 0;
+
+// ✅ With partial records — only loads the fields you specify
+Rec.SetLoadFields(Amount, Status, "Customer No.");
+Rec.SetRange(Status, Status::Pending);
+if Rec.FindSet() then
+    repeat
+        TotalAmount += Rec.Amount;
+    until Rec.Next() = 0;</code></pre>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            <code>SetLoadFields</code> is particularly powerful when processing large tables in background jobs. A loop over 100,000 rows loading 5 fields instead of 40 can be 4–8x faster depending on field sizes.
+          </div>
+        </div>
+
+        <h3>CalcFields Discipline</h3>
+        <pre class="code-block"><code>// ❌ BAD — CalcFields inside a loop issues N SQL queries
+if Rec.FindSet() then
+    repeat
+        Rec.CalcFields("Balance (LCY)"); // 1 extra SQL query per row
+        if Rec."Balance (LCY)" > 0 then ...
+    until Rec.Next() = 0;
+
+// ✅ GOOD — Use a query object or SumIndexFields key instead
+// Or filter before the loop to reduce the working set
+Rec.SetRange("Balance (LCY)", 0.01, 999999999);</code></pre>
+      </section>
+
+      <section id="loops">
+        <h2>Loop & Commit Patterns</h2>
+        <p>
+          Long-running loops that process thousands of records have two enemies: lock escalation and transaction log bloat. Strategic use of <code>Commit()</code> and row locking controls both.
+        </p>
+
+        <pre class="code-block"><code>// Pattern: process in chunks with periodic Commit()
+codeunit 50401 "Bulk Processor"
+{
+    trigger OnRun()
+    var
+        Rec:       Record "Large Table";
+        Counter:   Integer;
+        ChunkSize: Integer;
+    begin
+        ChunkSize := 500; // commit every 500 rows
+        Counter := 0;
+
+        Rec.SetRange(Status, Status::Pending);
+        Rec.SetLoadFields("Entry No.", Status, Amount);
+
+        if not Rec.FindSet(true) then exit; // true = lock rows for update
+
+        repeat
+            ProcessRecord(Rec);
+            Counter += 1;
+
+            if Counter mod ChunkSize = 0 then
+                Commit(); // release locks, flush transaction log
+
+        until Rec.Next() = 0;
+
+        Commit(); // final commit for remainder
+    end;
+}</code></pre>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <code>Commit()</code> inside a loop means failures after a commit cannot be rolled back. Design your processing to be re-entrant: mark records as processed before committing so a crash doesn't reprocess them on restart.
+          </div>
+        </div>
+      </section>
+
+      <section id="background">
+        <h2>Background Processing</h2>
+        <p>
+          Any operation taking more than 2–3 seconds should run in the background. Business Central's Job Queue is the primary tool, but <strong>Background Sessions</strong> offer a lighter option for in-page async work.
+        </p>
+
+        <h3>Background Sessions</h3>
+        <pre class="code-block"><code>// Spawn a background session from a page action
+// Runs in a separate server session — doesn't block the UI
+var
+    SessionId: Integer;
+begin
+    if not StartSession(SessionId, Codeunit::"Heavy Calculation Job", CompanyName()) then
+        Error('Could not start background session.');
+
+    Message('Processing started in background. Session: %1', SessionId);
+end;</code></pre>
+
+        <h3>Job Queue vs Background Session</h3>
+        <table class="data-table">
+          <thead><tr><th>Feature</th><th>Job Queue</th><th>Background Session</th></tr></thead>
+          <tbody>
+            <tr><td>Survives server restart</td><td>✅ Yes</td><td>❌ No</td></tr>
+            <tr><td>Retry on failure</td><td>✅ Configurable</td><td>❌ No</td></tr>
+            <tr><td>Scheduled execution</td><td>✅ Yes (cron-like)</td><td>❌ No</td></tr>
+            <tr><td>Monitoring UI</td><td>✅ Job Queue Log</td><td>❌ Manual</td></tr>
+            <tr><td>Setup overhead</td><td>Medium</td><td>Low</td></tr>
+            <tr><td>Best for</td><td>Production batch jobs</td><td>One-off async tasks</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="profiling">
+        <h2>Profiling with AL Profiler</h2>
+        <p>
+          Guessing where the bottleneck is wastes time. The AL Profiler in VS Code shows exactly how many milliseconds each AL method and SQL statement takes — use it before every optimisation effort.
+        </p>
+
+        <h3>How to Profile</h3>
+        <ol>
+          <li>Open your BC extension in VS Code</li>
+          <li>Open the Command Palette: <code>Ctrl+Shift+P</code></li>
+          <li>Run <strong>AL: Start Profiling</strong> — choose your environment</li>
+          <li>Perform the slow action in BC</li>
+          <li>Run <strong>AL: Stop Profiling</strong> — the flame graph opens automatically</li>
+        </ol>
+
+        <h3>Reading the Flame Graph</h3>
+        <ul>
+          <li><strong>Wide bars</strong> = slow code — the wider, the more wall-clock time spent there</li>
+          <li>Look for <code>NavCommon.dll</code> / <code>SQL</code> frames — these reveal database round-trips</li>
+          <li>Repeated narrow stacks appearing hundreds of times = a loop with per-iteration DB calls</li>
+          <li>A single very wide bar is usually a single slow query — add a key to fix it</li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            Also check <strong>Database Calls</strong> in the BC Performance Profiler (available under <em>Tools &gt; Performance Profiler</em> in the web client). It shows the exact SQL statements issued, row counts, and durations — invaluable for diagnosing missing indexes.
+          </div>
+        </div>
+      </section>
+
+      <section id="pages">
+        <h2>Page & Query Performance</h2>
+
+        <h3>Use Query Objects for Aggregations</h3>
+        <p>When a page or report needs aggregated data (sums, counts, averages across related tables), a <code>Query</code> object is significantly faster than iterating records in AL:</p>
+        <pre class="code-block"><code>query 50400 "Customer Invoice Summary"
+{
+    QueryType = Normal;
+
+    elements
+    {
+        dataitem(SalesInvoiceHeader; "Sales Invoice Header")
+        {
+            column(CustomerNo;   "Sell-to Customer No.") { }
+            column(PostingDate;  "Posting Date")         { }
+            column(InvoiceCount; "No.")
+            {
+                Method = Count;
+            }
+            column(TotalAmount;  Amount)
+            {
+                Method = Sum;
+            }
+        }
+    }
+}</code></pre>
+
+        <h3>FlowField Discipline on List Pages</h3>
+        <p>
+          FlowFields on list pages calculate for every visible row simultaneously. A list with 20 rows and 3 FlowFields issues 60 SQL queries on open. Mitigations:
+        </p>
+        <ul>
+          <li>Set <code>Enabled = false</code> on FlowField columns that aren't shown by default</li>
+          <li>Use <code>AutoCalcField = false</code> and calculate on demand (drill-down action)</li>
+          <li>Replace FlowFields with Query-backed FactBoxes where possible</li>
+        </ul>
+      </section>
+
+      <section id="antipatterns">
+        <h2>Common Anti-Patterns</h2>
+
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>N+1 Query Problem</h4>
+            <p>Calling <code>Get()</code> or <code>CalcFields()</code> inside a <code>FindSet</code> loop. Each iteration hits the database. Fix: pre-fetch with a Query or join, or refactor to a single-pass approach.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Unfiltered FindSet on Large Tables</h4>
+            <p>Calling <code>FindSet()</code> with no filters on Item Ledger Entries or Value Entries. Always apply at least one indexed filter before iterating. Never assume a table is small.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Missing Commit in Bulk Jobs</h4>
+            <p>Processing 50,000 records in a single transaction holds locks on all modified rows for the entire duration. Other sessions block. Add periodic <code>Commit()</code> calls every 500–1000 rows.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Modifying Records Unnecessarily</h4>
+            <p>Calling <code>Modify()</code> even when nothing changed. Always check if a field actually needs updating before writing. Unnecessary writes bloat the transaction log and trigger triggers.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div><strong>What's next?</strong> Read <em>Automating Document Processing</em> for how to apply these performance patterns in a real workflow automation scenario.</div>
+        </div>
+      </section>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">Performance</span>
+          <span class="tag">AL Code</span>
+          <span class="tag">SetLoadFields</span>
+          <span class="tag">Job Queue</span>
+          <span class="tag">AL Profiler</span>
+        </div>
+        <a href="index.html" class="back-link">← Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="excel-upload-sales-invoices.html">Excel Upload for Sales Invoices</a></li>
+            <li><a href="api-integration-patterns.html">API Integration Patterns</a></li>
+            <li><a href="automating-document-processing.html">Automating Document Processing</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">SetLoadFields</span>
+            <span class="tag">SumIndexFields</span>
+            <span class="tag">AL Profiler</span>
+            <span class="tag">Job Queue</span>
+            <span class="tag">Query Objects</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© 2026 Ranjith</span>
+      <span>ranjithravi282@hotmail.com</span>
+    </div>
+  </footer>
+</body>
+</html>
