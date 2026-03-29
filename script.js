@@ -9,35 +9,35 @@ const blogData = [
     },
     {
         title: 'Excel Upload for Sales Invoices in Business Central',
-        url: '#',
+        url: 'excel-upload-sales-invoices.html',
         category: 'Excel Upload',
         date: 'March 2026',
-        description: 'Designing a scalable bulk upload solution with validation, error handling, and reprocessing capability using Job Queue.',
+        description: 'Designing a scalable bulk upload pipeline with staging tables, row-level validation, error reports, and background posting via Job Queue.',
         tags: ['Excel', 'Validation', 'Job Queue']
     },
     {
         title: 'API Integration Patterns in Business Central',
-        url: '#',
+        url: 'api-integration-patterns.html',
         category: 'API',
         date: 'March 2026',
-        description: 'Best practices for integrating external systems using APIs, including authentication, data mapping, and error handling strategies.',
-        tags: ['API', 'REST', 'AL Code']
+        description: 'Best practices for integrating external systems — custom API pages, OAuth 2.0, webhooks, idempotency, and production readiness.',
+        tags: ['API', 'REST', 'Webhooks']
     },
     {
         title: 'Performance Optimization Techniques in Business Central',
-        url: '#',
+        url: 'performance-optimization.html',
         category: 'Performance',
         date: 'March 2026',
-        description: 'Practical techniques to improve query performance, use efficient data handling patterns, and leverage background processing.',
-        tags: ['Performance', 'SQL', 'AL Code']
+        description: 'Key design, SetLoadFields, partial records, loop patterns, background processing, and AL Profiler — a complete performance toolkit.',
+        tags: ['Performance', 'AL Profiler', 'SetLoadFields']
     },
     {
         title: 'Automating Document Processing with Business Central',
-        url: '#',
+        url: 'automating-document-processing.html',
         category: 'Automation',
         date: 'March 2026',
-        description: 'Automate document workflows using integration tools and reduce manual intervention across business processes.',
-        tags: ['Automation', 'Workflow']
+        description: 'Event subscribers, auto-posting via Job Queue, approval workflows, email notifications, and Power Automate triggers end to end.',
+        tags: ['Automation', 'Power Automate', 'Approvals']
     }
 ];
 
