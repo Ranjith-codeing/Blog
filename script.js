@@ -38,6 +38,62 @@ const blogData = [
         date: 'March 2026',
         description: 'Event subscribers, auto-posting via Job Queue, approval workflows, email notifications, and Power Automate triggers end to end.',
         tags: ['Automation', 'Power Automate', 'Approvals']
+    },
+    {
+        title: 'Business Central 2026 Wave 1: What Integrators Need to Know',
+        url: 'bc-2026-wave1-integrators-guide.html',
+        category: 'Release Wave',
+        date: 'April 2026',
+        description: 'A focused breakdown of release-wave priorities for integration teams, including testing and deployment planning.',
+        tags: ['BC 2026', 'Integration', 'Planning']
+    },
+    {
+        title: 'Shopify + Business Central 2026: New Connector Features and Setup Patterns',
+        url: 'shopify-business-central-2026-connector.html',
+        category: 'Commerce Integration',
+        date: 'April 2026',
+        description: 'Setup blueprint for catalog sync, order flow, fulfillment updates, and operational exception handling.',
+        tags: ['Shopify', 'Connector', 'Ecommerce']
+    },
+    {
+        title: 'Upgrading to Business Central v28 (2026 Wave 1): Risks, Checklist, Rollback Plan',
+        url: 'upgrading-to-bc-v28-playbook.html',
+        category: 'Upgrade',
+        date: 'April 2026',
+        description: 'A migration playbook covering baseline checks, regression testing, cutover controls, and rollback readiness.',
+        tags: ['Upgrade', 'v28', 'Checklist']
+    },
+    {
+        title: 'What Changed in BC 28.0 Preview: Dev + Admin Impact Breakdown',
+        url: 'bc-28-preview-dev-admin-impact.html',
+        category: 'Preview',
+        date: 'April 2026',
+        description: 'Role-based breakdown of changes that affect AL development, deployment pipelines, and administration.',
+        tags: ['Preview', 'AL', 'Admin']
+    },
+    {
+        title: 'Release Wave Strategy: How to Plan Business Central Changes Every 6 Months',
+        url: 'bc-release-wave-planning-strategy.html',
+        category: 'Strategy',
+        date: 'April 2026',
+        description: 'A governance model for recurring release planning, tenant testing, and controlled rollouts.',
+        tags: ['Governance', 'Roadmap', 'Release Wave']
+    },
+    {
+        title: 'Sustainability APIs in Business Central: Integration Patterns for Reporting',
+        url: 'sustainability-apis-business-central.html',
+        category: 'Sustainability',
+        date: 'April 2026',
+        description: 'Technical patterns for collecting, validating, and publishing sustainability metrics across systems.',
+        tags: ['Sustainability', 'API', 'Reporting']
+    },
+    {
+        title: 'AI in ERP Without the Hype: Where Agents Save Time in Finance Ops',
+        url: 'ai-agents-erp-finance-ops.html',
+        category: 'AI',
+        date: 'April 2026',
+        description: 'Practical use cases for AI agents in payables, approvals, anomaly handling, and period close support.',
+        tags: ['AI', 'Agents', 'Finance Ops']
     }
 ];
 
