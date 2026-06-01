@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <title>HMRC CIS Subcontractor Verification in Business Central | Ranjith</title>
+  <meta name="description" content="Verify construction subcontractors against HMRC from Business Central — OAuth 2.0, the mandatory fraud-prevention headers, deduction rates, sandbox testing, and storing the result." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <div class="progress-bar"></div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html"><span class="logo-mark">R</span> Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+        <a href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme"><svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">Compliance</span>
+          <span class="read-time">14 min read</span>
+        </div>
+        <h1 class="article-title">HMRC CIS Subcontractor Verification in Business Central</h1>
+        <p class="article-subtitle">Before a UK construction contractor pays a subcontractor, HMRC decides how much tax to deduct. Here's how to ask them directly from AL — OAuth, the headers everyone forgets, and what to do with the answer.</p>
+        <div class="article-byline">
+          <div class="byline-avatar">R</div>
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">May 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Under the UK <strong>Construction Industry Scheme (CIS)</strong>, a contractor must verify each subcontractor with HMRC before the first payment. HMRC replies with a tax treatment that decides how much to withhold: nothing, 20%, or 30%. Get it wrong and the contractor is liable for the shortfall. Doing this by hand on the HMRC portal doesn't scale past a handful of subbies — so we wire it into Business Central. The integration is a textbook HMRC API job, which means OAuth 2.0 and the one thing that catches every first-timer: <em>fraud-prevention headers</em>.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#why">CIS in one minute</a></li>
+          <li><a href="#rates">The three deduction rates</a></li>
+          <li><a href="#oauth">OAuth 2.0 with HMRC</a></li>
+          <li><a href="#fraud">Fraud-Prevention Headers</a></li>
+          <li><a href="#model">Data Model</a></li>
+          <li><a href="#verify">The Verification Call</a></li>
+          <li><a href="#handling">Handling the Response</a></li>
+          <li><a href="#production">Sandbox &amp; Production</a></li>
+          <li><a href="#conclusion">Conclusion</a></li>
+        </ol>
+      </nav>
+
+      <section id="why">
+        <h2>CIS in one minute</h2>
+        <p>
+          CIS applies when a business pays subcontractors for construction work. The <strong>contractor</strong> deducts a percentage from the labour portion of each payment and pays it over to HMRC as an advance on the subcontractor's tax. The percentage depends entirely on the subcontractor's status with HMRC — which is exactly what verification establishes. Verification returns two things: a <strong>verification number</strong> and a <strong>tax treatment</strong>.
+        </p>
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            You generally verify a subcontractor <strong>once</strong>. You only need to re-verify if you haven't included them in a CIS return in the current or previous two tax years. Cache the result on the vendor and you're not hammering the API.
+          </div>
+        </div>
+      </section>
+
+      <section id="rates">
+        <h2>The three deduction rates</h2>
+        <table class="data-table">
+          <thead><tr><th>Tax Treatment</th><th>Deduction</th><th>When HMRC returns it</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Gross</strong></td><td>0%</td><td>Subcontractor has gross payment status — paid in full, settles tax later.</td></tr>
+            <tr><td><strong>Net (Standard)</strong></td><td>20%</td><td>Subcontractor is registered for CIS and matched.</td></tr>
+            <tr><td><strong>Higher (Unmatched)</strong></td><td>30%</td><td>Subcontractor could not be matched / is not registered.</td></tr>
+          </tbody>
+        </table>
+        <p>
+          The verification number is the same for every subcontractor verified in a single request — except for <em>unmatched</em> ones, where HMRC appends a one- or two-letter suffix. You store this number against the vendor and quote it on the CIS return.
+        </p>
+      </section>
+
+      <section id="oauth">
+        <h2>OAuth 2.0 with HMRC</h2>
+        <p>
+          Every HMRC API uses OAuth 2.0. There are two access types, and CIS verification is <strong>user-restricted</strong> — it acts on behalf of a specific contractor, so a real person from that organisation authorises it once through Government Gateway. That consent yields a long-lived <strong>refresh token</strong>, which your integration then exchanges for short-lived access tokens going forward.
+        </p>
+        <pre class="code-block" data-lang="AL"><code>codeunit 50700 "HMRC OAuth Manager"
+{
+    // Exchange the stored refresh token for a fresh access token.
+    // The initial authorization-code consent is a one-time admin setup.
+    procedure GetAccessToken(): Text
+    var
+        Setup: Record "HMRC CIS Setup";
+        Client: HttpClient;
+        Request: HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        Json: JsonObject;
+        Token: JsonToken;
+        Body, ResponseText, RefreshToken: Text;
+    begin
+        Setup.Get();
+        if not IsolatedStorage.Get('HMRC_RefreshToken', DataScope::Company, RefreshToken) then
+            Error('HMRC has not been authorised yet. Run the consent wizard first.');
+
+        Body :=
+            'grant_type=refresh_token' +
+            '&client_id=' + Setup."Client ID" +
+            '&client_secret=' + GetClientSecret() +
+            '&refresh_token=' + RefreshToken;
+
+        Content.WriteFrom(Body);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/x-www-form-urlencoded');
+
+        Request.Method := 'POST';
+        Request.SetRequestUri(Setup."Base URL" + '/oauth/token');
+        Request.Content := Content;
+
+        Client.Send(Request, Response);
+        Response.Content.ReadAs(ResponseText);
+        if not Response.IsSuccessStatusCode() then
+            Error('HMRC token request failed (%1): %2', Response.HttpStatusCode(), ResponseText);
+
+        Json.ReadFrom(ResponseText);
+        // Persist the rotated refresh token, then return the access token
+        if Json.Get('refresh_token', Token) then
+            IsolatedStorage.Set('HMRC_RefreshToken', Token.AsValue().AsText(), DataScope::Company);
+        Json.Get('access_token', Token);
+        exit(Token.AsValue().AsText());
+    end;
+}</code></pre>
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            HMRC <strong>rotates the refresh token</strong> on each use. If you don't persist the new one returned in the response, your next token request fails — a subtle bug that surfaces a few hours after go-live, not in testing.
+          </div>
+        </div>
+      </section>
+
+      <section id="fraud">
+        <h2>Fraud-Prevention Headers</h2>
+        <p>
+          This is the part nobody expects. HMRC requires a set of <code>Gov-Client-*</code> and <code>Gov-Vendor-*</code> HTTP headers on every API call that describe the device and connection originating the request. They are <strong>mandatory and audited</strong> — calls without valid headers may be rejected or flagged, and HMRC publishes a "Test Fraud Prevention Headers" API specifically to validate them.
+        </p>
+        <pre class="code-block" data-lang="AL"><code>local procedure AddFraudPreventionHeaders(var Headers: HttpHeaders)
+var
+    Setup: Record "HMRC CIS Setup";
+begin
+    Setup.Get();
+    // Connection method for a server-side ERP integration
+    Headers.Add('Gov-Client-Connection-Method', 'BATCH_PROCESS_DIRECT');
+    Headers.Add('Gov-Client-Device-ID', Setup."Device ID");            // stable UUID per install
+    Headers.Add('Gov-Client-User-IDs', 'bc=' + UserId());
+    Headers.Add('Gov-Client-Timezone', 'UTC+00:00');
+    Headers.Add('Gov-Client-Local-IPs', GetServerIp());
+    Headers.Add('Gov-Vendor-Version', 'cis-connector=' + GetExtensionVersion());
+    Headers.Add('Gov-Vendor-Product-Name', 'BC-CIS-Connector');
+    Headers.Add('Gov-Vendor-License-IDs', '');
+end;</code></pre>
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            The exact header set depends on your <em>connection method</em> — a server batch process sends fewer headers than a browser-based app. Build them from one helper, version them with your extension, and run HMRC's validator API in your build pipeline so a header regression fails CI, not production.
+          </div>
+        </div>
+      </section>
+
+      <section id="model">
+        <h2>Data Model</h2>
+        <p>Two pieces: the contractor's own identity (setup) and the per-subcontractor result (a Vendor extension).</p>
+        <table class="data-table">
+          <thead><tr><th>Object</th><th>Key Fields</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>HMRC CIS Setup</code></td>
+              <td>Base URL, Client ID, Contractor UTR, Accounts Office Ref, Employer PAYE Ref, Device ID</td>
+            </tr>
+            <tr>
+              <td><code>Vendor</code> (extension)</td>
+              <td>CIS Subcontractor, UTR, NINO / Company Reg No, Verification Number, Tax Treatment, Verified Date</td>
+            </tr>
+          </tbody>
+        </table>
+        <pre class="code-block" data-lang="AL"><code>tableextension 50700 "CIS Vendor Ext" extends Vendor
+{
+    fields
+    {
+        field(50700; "CIS Subcontractor"; Boolean) { Caption = 'CIS Subcontractor'; }
+        field(50701; "CIS UTR"; Code[10])
+        {
+            Caption = 'Unique Taxpayer Reference';
+            DataClassification = CustomerContent;
+        }
+        field(50702; "CIS Verification No."; Code[20]) { Caption = 'Verification Number'; Editable = false; }
+        field(50703; "CIS Tax Treatment"; Enum "CIS Tax Treatment") { Caption = 'Tax Treatment'; Editable = false; }
+        field(50704; "CIS Verified On"; Date) { Caption = 'Verified On'; Editable = false; }
+    }
+}
+
+enum 50700 "CIS Tax Treatment"
+{
+    value(0; " ") { Caption = ' '; }
+    value(1; Gross)  { Caption = 'Gross (0%)'; }
+    value(2; Net)    { Caption = 'Net (20%)'; }
+    value(3; Higher) { Caption = 'Higher (30%)'; }
+}</code></pre>
+      </section>
+
+      <section id="verify">
+        <h2>The Verification Call</h2>
+        <p>
+          With a token and headers in hand, the verify request POSTs the contractor's references plus the subcontractor(s) to be checked. The body shape below is representative — always confirm the current contract on the <strong>HMRC Developer Hub</strong>, as field names and versions evolve.
+        </p>
+        <pre class="code-block" data-lang="JSON"><code>{
+  "contractor": {
+    "utr": "1234567890",
+    "aoReference": "123PA12345678"
+  },
+  "subcontractors": [
+    {
+      "type": "soleTrader",
+      "utr": "0987654321",
+      "nino": "AA123456A",
+      "firstName": "John",
+      "lastName": "Doe"
+    }
+  ]
+}</code></pre>
+        <pre class="code-block" data-lang="AL"><code>codeunit 50701 "CIS Verification"
+{
+    procedure VerifyVendor(var Vendor: Record Vendor)
+    var
+        OAuth: Codeunit "HMRC OAuth Manager";
+        Setup: Record "HMRC CIS Setup";
+        Client: HttpClient;
+        Request: HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        Payload: Text;
+        ResponseText: Text;
+    begin
+        Vendor.TestField("CIS Subcontractor", true);
+        Vendor.TestField("CIS UTR");
+        Setup.Get();
+
+        Payload := BuildVerifyPayload(Setup, Vendor);
+        Content.WriteFrom(Payload);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Request.Content := Content;
+        Request.GetHeaders(Headers);
+        Headers.Add('Authorization', 'Bearer ' + OAuth.GetAccessToken());
+        Headers.Add('Accept', 'application/vnd.hmrc.1.0+json');  // HMRC API versioning
+        AddFraudPreventionHeaders(Headers);
+
+        Request.Method := 'POST';
+        Request.SetRequestUri(Setup."Base URL" +
+            '/organisations/construction-industry-scheme/cis/verify');
+
+        Client.Send(Request, Response);
+        Response.Content.ReadAs(ResponseText);
+        HandleResponse(Vendor, Response, ResponseText);
+    end;
+}</code></pre>
+      </section>
+
+      <section id="handling">
+        <h2>Handling the Response</h2>
+        <p>A success returns the verification number and each subcontractor's treatment. Map it onto the vendor and stamp the date:</p>
+        <pre class="code-block" data-lang="AL"><code>local procedure HandleResponse(var Vendor: Record Vendor;
+                               var Response: HttpResponseMessage; ResponseText: Text)
+var
+    Json: JsonObject;
+    Subs: JsonToken;
+    Sub: JsonToken;
+    Treatment, VerifyNo: JsonToken;
+begin
+    if Response.HttpStatusCode() = 401 then
+        Error('HMRC rejected the token. Re-run authorisation.');
+    if Response.HttpStatusCode() = 429 then
+        Error('HMRC rate limit hit — back off and retry via the Job Queue.');
+    if not Response.IsSuccessStatusCode() then
+        Error('CIS verification failed (%1): %2', Response.HttpStatusCode(), ResponseText);
+
+    Json.ReadFrom(ResponseText);
+    Json.Get('subcontractors', Subs);
+    foreach Sub in Subs.AsArray() do begin
+        Sub.AsObject().Get('verificationNumber', VerifyNo);
+        Sub.AsObject().Get('taxTreatment', Treatment);
+
+        Vendor."CIS Verification No." := CopyStr(VerifyNo.AsValue().AsText(), 1, 20);
+        Vendor."CIS Tax Treatment"   := MapTreatment(Treatment.AsValue().AsText());
+        Vendor."CIS Verified On"     := Today();
+        Vendor.Modify(true);
+    end;
+end;
+
+local procedure MapTreatment(Code: Text): Enum "CIS Tax Treatment"
+begin
+    case Code of
+        'gross':    exit("CIS Tax Treatment"::Gross);
+        'net':      exit("CIS Tax Treatment"::Net);
+        'unmatched','higher': exit("CIS Tax Treatment"::Higher);
+    end;
+end;</code></pre>
+        <div class="callout callout-danger">
+          <div class="callout-icon">🚫</div>
+          <div>
+            <strong>Never default an unknown response to 0%.</strong> If the treatment can't be mapped, leave the vendor unverified and surface an error. Under-deducting because of a parsing gap makes the contractor liable for the difference plus penalties.
+          </div>
+        </div>
+      </section>
+
+      <section id="production">
+        <h2>Sandbox &amp; Production</h2>
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>Test on the Sandbox</h4>
+            <p>Develop against <code>test-api.service.hmrc.gov.uk</code> with HMRC-generated test users. Production is <code>api.service.hmrc.gov.uk</code> — store the base URL in setup so you flip environments without a code change.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Verify via Job Queue</h4>
+            <p>Bulk-verify new subcontractors in the background with retry. Respect <code>429</code> with exponential back-off — HMRC throttles per application.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Protect the UTR</h4>
+            <p>UTR and NINO are personal tax data. Classify the fields, restrict the page with a permission set, and keep the client secret in Isolated Storage.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Block Payment if Unverified</h4>
+            <p>Subscribe to the payment-journal validation event and stop a CIS subcontractor payment going out at the wrong rate when no verification exists.</p>
+          </div>
+        </div>
+
+        <h3>Readiness Checklist</h3>
+        <div class="checklist">
+          <div class="check-item check-pass">Fraud-prevention headers validated against HMRC's test API in CI</div>
+          <div class="check-item check-pass">Refresh token rotation persisted on every token exchange</div>
+          <div class="check-item check-pass">Base URL configurable — sandbox vs production with no redeploy</div>
+          <div class="check-item check-pass">Verification result cached on the vendor; re-verify only when required</div>
+          <div class="check-item check-pass">Unknown tax treatment is an error, never a silent 0%</div>
+          <div class="check-item check-pass">UTR / NINO classified and access-restricted</div>
+          <div class="check-item check-warn">Payment blocked when a CIS subcontractor is unverified</div>
+        </div>
+      </section>
+
+      <section id="conclusion">
+        <h2>Conclusion</h2>
+        <p>
+          HMRC verification is a compliance feature dressed as an integration. The REST mechanics are familiar — token, headers, POST, parse — but the consequences of cutting corners are financial, not cosmetic. Build the fraud-prevention headers properly, persist the rotating refresh token, fail loudly on anything you can't map, and cache the result so you're a good API citizen.
+        </p>
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div>
+            <strong>What's next?</strong> Wire the same care into observability — see <a href="application-insights-telemetry.html">Telemetry with Application Insights</a> to track every HMRC call, its status, and its latency in Azure.
+          </div>
+        </div>
+      </section>
+
+      <div class="kicker reveal">
+        <div class="kicker-title">Key takeaways</div>
+        <ul>
+          <li>CIS verification returns a <strong>verification number</strong> and a tax treatment of <strong>0 / 20 / 30%</strong>.</li>
+          <li>It's <strong>user-restricted</strong> OAuth — a one-time Gov Gateway consent yields a rotating refresh token.</li>
+          <li><strong>Fraud-prevention headers</strong> are mandatory and audited — validate them with HMRC's test API.</li>
+          <li>Cache the result on the vendor and re-verify only when the rules require it.</li>
+          <li>An unmappable response is an <strong>error</strong>, never a silent 0% deduction.</li>
+        </ul>
+      </div>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">HMRC</span>
+          <span class="tag">CIS</span>
+          <span class="tag">OAuth 2.0</span>
+          <span class="tag">Compliance</span>
+          <span class="tag">UK</span>
+        </div>
+        <a href="index.html" class="back-link">Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">On this page</div>
+          <ul class="toc-mini">
+            <li><a href="#why">CIS in one minute</a></li>
+            <li><a href="#rates">Deduction rates</a></li>
+            <li><a href="#oauth">OAuth 2.0</a></li>
+            <li><a href="#fraud">Fraud-Prevention Headers</a></li>
+            <li><a href="#model">Data Model</a></li>
+            <li><a href="#verify">Verification Call</a></li>
+            <li><a href="#handling">Handling the Response</a></li>
+            <li><a href="#production">Sandbox &amp; Production</a></li>
+            <li><a href="#conclusion">Conclusion</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="api-integration-patterns.html">API Integration Patterns</a></li>
+            <li><a href="application-insights-telemetry.html">Telemetry with App Insights</a></li>
+            <li><a href="whatsapp-integration.html">WhatsApp Notifications</a></li>
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="automating-document-processing.html">Automating Document Processing</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">OAuth 2.0</span>
+            <span class="tag">Fraud Headers</span>
+            <span class="tag">HttpClient</span>
+            <span class="tag">Isolated Storage</span>
+            <span class="tag">Job Queue</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© <span id="year">2026</span> Ranjith · Business Central Engineering</span>
+      <div class="footer-social">
+        <a href="mailto:ranjithravi282@hotmail.com">Email</a>
+        <a href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <button class="to-top" type="button" aria-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
