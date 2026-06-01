@@ -4,11 +4,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ranjith | Business Central Blog</title>
-  <meta name="description" content="Real-world solutions, integrations, and performance insights in Dynamics 365 Business Central." />
+  <title>Ranjith · Business Central Engineering Blog</title>
+  <meta name="description" content="Field-tested solutions, integrations, and performance engineering for Microsoft Dynamics 365 Business Central — written by Ranjith." />
+  <meta name="author" content="Ranjith" />
+  <meta property="og:title" content="Ranjith · Business Central Engineering Blog" />
+  <meta property="og:description" content="Real-world AL patterns, integrations, and performance engineering for Dynamics 365 Business Central." />
+  <meta property="og:type" content="website" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (!t) { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -17,67 +30,91 @@
   <!-- Header -->
   <header class="site-header">
     <div class="header-inner">
-      <div class="logo"><a href="index.html">Ranjith</a></div>
+      <div class="logo">
+        <a href="index.html"><span class="logo-mark">R</span> Ranjith</a>
+      </div>
       <nav class="nav">
         <a href="index.html">Blog</a>
         <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+        <a class="theme-host" href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
       </nav>
     </div>
   </header>
 
   <!-- Hero -->
-  <div class="hero">
-    <h1>Business Central<br />Technical Blog</h1>
-    <p>Real-world solutions, integrations, and performance insights in Dynamics 365 Business Central.</p>
-  </div>
+  <section class="hero">
+    <span class="eyebrow">● Dynamics 365 Business Central</span>
+    <h1>Engineering notes from the<br /><span class="grad">Business Central</span> trenches.</h1>
+    <p>Real-world AL patterns, integrations, and performance engineering — the things I wish were
+      documented when I first hit them on a live project.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num" id="stat-articles">8</div><div class="lbl">In-depth articles</div></div>
+      <div class="hero-stat"><div class="num">6</div><div class="lbl">Topics covered</div></div>
+      <div class="hero-stat"><div class="num">BC 2024+</div><div class="lbl">Field-tested on</div></div>
+    </div>
+  </section>
 
   <!-- Featured -->
-  <div class="section">
-    <h2>Featured</h2>
-    <div class="featured">
-      <div class="blog-meta">March 2026 · Integration</div>
-      <h2>
-        <a href="sharepoint-bc-integration.html">SharePoint Integration with Business Central</a>
-      </h2>
-      <p>
-        A complete approach to document management using SharePoint — full architecture walkthrough,
-        AL code, OAuth token handling, retry queues, and security best practices.
-      </p>
-      <div class="tags" style="margin-top:14px;">
+  <section class="section">
+    <div class="section-head"><h2>Featured</h2></div>
+    <div class="featured reveal">
+      <span class="pill">Integration · March 2026</span>
+      <h2><a href="sharepoint-bc-integration.html">SharePoint Integration with Business Central</a></h2>
+      <p>A complete, production-ready approach to document management with SharePoint — full architecture
+        walkthrough, AL code, OAuth token handling, retry queues, and the security patterns that keep auditors happy.</p>
+      <div class="tags">
         <span class="tag">AL Code</span>
         <span class="tag">OAuth</span>
         <span class="tag">SharePoint</span>
         <span class="tag">Job Queue</span>
       </div>
+      <a class="read-more" href="sharepoint-bc-integration.html">Read the article</a>
     </div>
-  </div>
+  </section>
 
-  <!-- Categories -->
-  <div class="section">
-    <h2>Categories</h2>
-    <div class="tags">
-      <span class="tag">Integration</span>
-      <span class="tag">Excel Upload</span>
-      <span class="tag">API</span>
-      <span class="tag">Performance</span>
-      <span class="tag">Automation</span>
+  <!-- All articles + search/filter -->
+  <section class="section">
+    <div class="section-head">
+      <h2>All Articles</h2>
+      <span class="section-count" id="article-count"></span>
     </div>
-  </div>
 
-  <!-- Blog List -->
-  <div class="section">
-    <h2>All Articles</h2>
-    <ul id="available-blogs" class="blog-list"></ul>
-  </div>
+    <div class="toolbar">
+      <label class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search-input" type="search" placeholder="Search articles, tags, topics…" aria-label="Search articles" />
+      </label>
+    </div>
+    <div class="filter-chips" id="filter-chips" role="group" aria-label="Filter by category" style="margin-top:14px;"></div>
+
+    <div class="card-grid" id="available-blogs" style="margin-top:26px;"></div>
+    <div class="empty-state" id="empty-state">
+      <div class="big">🔍</div>
+      <p>No articles match your search. Try a different keyword or category.</p>
+    </div>
+  </section>
 
   <!-- Footer -->
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>© 2026 Ranjith</span>
-      <span>ranjithravi282@hotmail.com</span>
+      <span>© <span id="year">2026</span> Ranjith · Business Central Engineering</span>
+      <div class="footer-social">
+        <a href="mailto:ranjithravi282@hotmail.com">Email</a>
+        <a href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+      </div>
     </div>
   </footer>
 
+  <button class="to-top" type="button" aria-label="Back to top">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+
+  <script src="app.js"></script>
   <script src="script.js"></script>
 </body>
+
 </html>

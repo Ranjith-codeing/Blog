@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <title>WhatsApp Notifications from Business Central | Ranjith</title>
+  <meta name="description" content="Send invoice alerts and notifications over the WhatsApp Business Cloud API directly from Business Central AL — setup, text and template messages, and an auto-send subscriber on posting." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <div class="progress-bar"></div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo"><a href="index.html"><span class="logo-mark">R</span> Ranjith</a></div>
+      <nav class="nav">
+        <a href="index.html">Blog</a>
+        <a href="mailto:ranjithravi282@hotmail.com">Contact</a>
+        <a href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme"><svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="article-layout">
+    <main class="article-main">
+
+      <div class="article-header">
+        <div class="article-meta-top">
+          <span class="cat-badge">Integration</span>
+          <span class="read-time">13 min read</span>
+        </div>
+        <h1 class="article-title">WhatsApp Notifications from Business Central</h1>
+        <p class="article-subtitle">Customers don't check email inboxes the way they check WhatsApp. Here's how to push posted-invoice alerts — and any other notification — straight from AL using Meta's WhatsApp Business Cloud API.</p>
+        <div class="article-byline">
+          <div class="byline-avatar">R</div>
+          <div class="byline-info">
+            <span class="byline-author">Ranjith</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-date">May 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="article-rule" />
+
+      <p class="article-lead">
+        Email notifications get buried; WhatsApp messages get read in minutes. For a lot of Business Central customers — especially in SMB and retail — a WhatsApp invoice alert is the difference between "paid this week" and "chasing next month". The good news: Meta's WhatsApp Business <strong>Cloud API</strong> is a plain REST endpoint, so everything you need lives inside an AL <code>HttpClient</code> call. This walkthrough builds it from a setup table up to an automatic send when a sales invoice is posted.
+      </p>
+
+      <nav class="toc">
+        <div class="toc-label">In this article</div>
+        <ol class="toc-list">
+          <li><a href="#why">Why WhatsApp, and what the Cloud API gives you</a></li>
+          <li><a href="#architecture">Solution Architecture</a></li>
+          <li><a href="#prerequisites">Meta Prerequisites</a></li>
+          <li><a href="#setup">Setup Table &amp; Page</a></li>
+          <li><a href="#text">Sending a Text Message</a></li>
+          <li><a href="#template">Template Messages</a></li>
+          <li><a href="#auto">Auto-Send on Posting</a></li>
+          <li><a href="#production">Production Hardening</a></li>
+          <li><a href="#conclusion">Conclusion</a></li>
+        </ol>
+      </nav>
+
+      <section id="why">
+        <h2>Why WhatsApp, and what the Cloud API gives you</h2>
+        <p>
+          The WhatsApp Business Cloud API is hosted by Meta — there's no on-prem WhatsApp server to run (that was the old "On-Premises API", now deprecated). You register an app, get a <strong>Phone Number ID</strong> and an access token, and POST JSON to <code>graph.facebook.com</code>. Two message types matter for ERP notifications:
+        </p>
+        <ul>
+          <li><strong>Text messages</strong> — free-form, but only allowed inside a 24-hour <em>customer service window</em> that opens when the customer last messaged you.</li>
+          <li><strong>Template messages</strong> — pre-approved, parameterised messages you can send <em>any</em> time. This is what you want for unsolicited invoice alerts.</li>
+        </ul>
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <strong>The 24-hour rule trips everyone up.</strong> You cannot send a free-form text message to a customer who hasn't messaged you in the last 24 hours — Meta will reject it. Business-initiated notifications like "your invoice is ready" <em>must</em> use an approved template.
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <h2>Solution Architecture</h2>
+        <p>Business Central never talks to WhatsApp directly — it talks to the Meta Graph API, which delivers the message. Three moving parts:</p>
+        <div class="arch-diagram">
+          <div class="arch-box arch-bc">
+            <div class="arch-icon">🏢</div>
+            <div class="arch-name">Business Central</div>
+            <div class="arch-desc">Posting event, message body, recipient lookup</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-middle">
+            <div class="arch-icon">🌐</div>
+            <div class="arch-name">Meta Graph API</div>
+            <div class="arch-desc">graph.facebook.com · Bearer token · JSON</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-sp">
+            <div class="arch-icon">💬</div>
+            <div class="arch-name">WhatsApp</div>
+            <div class="arch-desc">Message delivered to the customer's phone</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="prerequisites">
+        <h2>Meta Prerequisites</h2>
+        <p>Set these up once on the Meta side before writing AL:</p>
+        <ol class="steps">
+          <li>Create a <strong>Meta for Developers</strong> app and add the <em>WhatsApp</em> product.</li>
+          <li>Connect a <strong>WhatsApp Business Account (WABA)</strong> and register a phone number — you'll get a <strong>Phone Number ID</strong>.</li>
+          <li>Generate a <strong>permanent access token</strong> via a System User (the temporary 24-hour token is fine for testing only).</li>
+          <li>Create and submit a <strong>message template</strong> for approval — for this article, one named <code>sales_invoice_cvt</code> with five body parameters.</li>
+        </ol>
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            The messages endpoint is keyed by the <strong>Phone Number ID</strong>, not the WABA ID. It's an easy mix-up — if you get a <code>(#100) Param ... is not valid</code> error, this is the first thing to check.
+          </div>
+        </div>
+      </section>
+
+      <section id="setup">
+        <h2>Setup Table &amp; Page</h2>
+        <p>A single-record setup table holds the connection configuration. The token is sensitive, so flag it accordingly and mask it on the page.</p>
+        <pre class="code-block" data-lang="AL"><code>table 57100 "WA Setup"
+{
+    Caption = 'WhatsApp Setup';
+    DataClassification = CustomerContent;
+
+    fields
+    {
+        field(1; "Primary Key"; Code[10]) { Caption = 'Primary Key'; }
+        field(2; "API Version"; Text[10])
+        {
+            Caption = 'API Version';   // e.g. v20.0
+            InitValue = 'v20.0';
+        }
+        field(3; "Phone Number ID"; Text[50]) { Caption = 'Phone Number ID'; }
+        field(4; "Access Token"; Text[250])
+        {
+            Caption = 'Access Token';
+            ExtendedDatatype = Masked;   // hide on the card
+        }
+        field(5; "Country Code"; Text[5])
+        {
+            Caption = 'Default Country Code';
+            InitValue = '91';
+        }
+        field(6; Enabled; Boolean) { Caption = 'Enabled'; }
+    }
+
+    keys { key(PK; "Primary Key") { Clustered = true; } }
+}</code></pre>
+
+        <p>The setup card adds a <em>Test Message</em> action so an administrator can confirm the connection without posting anything:</p>
+        <pre class="code-block" data-lang="AL"><code>page 57100 "WA Setup"
+{
+    Caption = 'WhatsApp Setup';
+    PageType = Card;
+    SourceTable = "WA Setup";
+    ApplicationArea = All;
+    UsageCategory = Administration;
+    InsertAllowed = false;
+    DeleteAllowed = false;
+
+    layout
+    {
+        area(Content)
+        {
+            group(General)
+            {
+                field("Phone Number ID"; Rec."Phone Number ID") { ApplicationArea = All; }
+                field("API Version"; Rec."API Version") { ApplicationArea = All; }
+                field("Access Token"; Rec."Access Token")
+                {
+                    ApplicationArea = All;
+                    ExtendedDatatype = Masked;
+                }
+                field("Country Code"; Rec."Country Code") { ApplicationArea = All; }
+                field(Enabled; Rec.Enabled) { ApplicationArea = All; }
+            }
+        }
+    }
+
+    actions
+    {
+        area(Processing)
+        {
+            action(TestMessage)
+            {
+                ApplicationArea = All;
+                Caption = 'Send Test Message';
+                Image = SendTo;
+                trigger OnAction()
+                var
+                    WA: Codeunit "WhatsApp Integration";
+                begin
+                    WA.SendTextMessage('This is a test message from Business Central.',
+                                       Rec."Country Code" + '9943076061');
+                end;
+            }
+        }
+    }
+
+    trigger OnOpenPage()
+    begin
+        if not Rec.Get() then begin
+            Rec.Init();
+            Rec.Insert();
+        end;
+    end;
+}</code></pre>
+        <div class="callout callout-warn">
+          <div class="callout-icon">🔒</div>
+          <div>
+            <strong>Hardening note:</strong> a masked text field still stores the token in the database. For production, keep the token in <strong>Isolated Storage</strong> and expose only a write-only "set token" action — see <a href="#production">Production Hardening</a> below.
+          </div>
+        </div>
+      </section>
+
+      <section id="text">
+        <h2>Sending a Text Message</h2>
+        <p>
+          The core of the integration is one procedure: build the JSON body, attach the Bearer token, POST it. The WhatsApp payload for a text message nests the message under a <code>text</code> object:
+        </p>
+        <pre class="code-block" data-lang="AL"><code>codeunit 57101 "WhatsApp Integration"
+{
+    procedure SendTextMessage(Body: Text; ToPhone: Text): Boolean
+    var
+        Setup: Record "WA Setup";
+        Client: HttpClient;
+        Request: HttpRequestMessage;
+        Response: HttpResponseMessage;
+        Headers: HttpHeaders;
+        Content: HttpContent;
+        Payload: JsonObject;
+        TextObj: JsonObject;
+        ResponseText: Text;
+    begin
+        Setup.Get();
+        Setup.TestField(Enabled);
+        Setup.TestField("Phone Number ID");
+
+        // { "messaging_product": "whatsapp", "to": "...",
+        //   "type": "text", "text": { "preview_url": true, "body": "..." } }
+        Payload.Add('messaging_product', 'whatsapp');
+        Payload.Add('to', ToPhone);
+        Payload.Add('type', 'text');
+        TextObj.Add('preview_url', true);
+        TextObj.Add('body', Body);
+        Payload.Add('text', TextObj);
+
+        SendToGraph(Setup, Payload, Response);
+
+        Response.Content.ReadAs(ResponseText);
+        if not Response.IsSuccessStatusCode() then
+            Error('WhatsApp send failed (%1): %2', Response.HttpStatusCode(), ResponseText);
+        exit(true);
+    end;
+
+    local procedure SendToGraph(Setup: Record "WA Setup"; Payload: JsonObject;
+                                var Response: HttpResponseMessage)
+    var
+        Client: HttpClient;
+        Request: HttpRequestMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        Body: Text;
+    begin
+        Payload.WriteTo(Body);
+        Content.WriteFrom(Body);
+
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Request.Content := Content;
+        Request.GetHeaders(Headers);
+        Headers.Add('Authorization', 'Bearer ' + GetToken(Setup));
+
+        Request.Method := 'POST';
+        Request.SetRequestUri(StrSubstNo('https://graph.facebook.com/%1/%2/messages',
+                                         Setup."API Version", Setup."Phone Number ID"));
+        Client.Send(Request, Response);
+    end;
+}</code></pre>
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            Notice the <code>Content-Type</code> header is set on the <em>content</em>, while <code>Authorization</code> is set on the <em>request</em>. AL splits headers between the two — a classic source of "why is my header missing" bugs.
+          </div>
+        </div>
+      </section>
+
+      <section id="template">
+        <h2>Template Messages</h2>
+        <p>
+          For invoice alerts you need a template, because the customer hasn't opened a service window. A template message references the approved template by name and language, then supplies an ordered array of parameters that fill the <code>{{1}}</code>, <code>{{2}}</code>… placeholders in the template body.
+        </p>
+        <pre class="code-block" data-lang="AL"><code>procedure SendInvoiceTemplate(SalesInvHeader: Record "Sales Invoice Header"; ToPhone: Text)
+var
+    Setup: Record "WA Setup";
+    Response: HttpResponseMessage;
+    Payload: JsonObject;
+    Template: JsonObject;
+begin
+    Setup.Get();
+    Setup.TestField(Enabled);
+
+    Payload.Add('messaging_product', 'whatsapp');
+    Payload.Add('recipient_type', 'individual');
+    Payload.Add('to', ToPhone);
+    Payload.Add('type', 'template');
+
+    BuildInvoiceTemplate(Template, SalesInvHeader);
+    Payload.Add('template', Template);
+
+    SendToGraph(Setup, Payload, Response);
+    if not Response.IsSuccessStatusCode() then
+        LogFailure(SalesInvHeader."No.", ToPhone, Response);
+end;
+
+local procedure BuildInvoiceTemplate(var Template: JsonObject;
+                                     SalesInv: Record "Sales Invoice Header")
+var
+    Language: JsonObject;
+    Components: JsonArray;
+    BodyComponent: JsonObject;
+    Parameters: JsonArray;
+begin
+    Template.Add('name', 'sales_invoice_cvt');
+    Language.Add('code', 'en');
+    Template.Add('language', Language);
+
+    // Body parameters, in the exact order they appear in the approved template
+    AddTextParam(Parameters, SalesInv."Sell-to Customer Name");
+    AddTextParam(Parameters, SalesInv."External Document No.");
+    AddTextParam(Parameters, SalesInv."No.");
+    AddTextParam(Parameters, Format(SalesInv.Amount, 0, '<Precision,2:2><Integer Thousand><Decimals>'));
+    AddTextParam(Parameters, Format(SalesInv."Due Date", 0, '<Day,2>/<Month,2>/<Year4>'));
+
+    BodyComponent.Add('type', 'body');
+    BodyComponent.Add('parameters', Parameters);
+    Components.Add(BodyComponent);
+    Template.Add('components', Components);
+end;
+
+local procedure AddTextParam(var Parameters: JsonArray; Value: Text)
+var
+    Param: JsonObject;
+begin
+    Param.Add('type', 'text');
+    Param.Add('text', Value);
+    Parameters.Add(Param);
+end;</code></pre>
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div>
+            <strong>Parameter order is everything.</strong> WhatsApp matches parameters positionally, not by name. If you reorder the body parameters here without changing the approved template, customers get "Invoice 4,500.00 due to John Smith" — change the template and the code together.
+          </div>
+        </div>
+      </section>
+
+      <section id="auto">
+        <h2>Auto-Send on Posting</h2>
+        <p>
+          The whole point is zero manual effort. Subscribe to the sales-post event, look up the posted invoice and the customer's phone, and fire the template. Keep the subscriber thin and never let a messaging failure roll back the posting.
+        </p>
+        <pre class="code-block" data-lang="AL"><code>codeunit 57102 "WA Posting Subscriber"
+{
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post",
+                     'OnAfterFinalizePosting', '', false, false)]
+    local procedure OnAfterFinalizePosting(
+        var SalesHeader: Record "Sales Header";
+        var SalesInvoiceHeader: Record "Sales Invoice Header")
+    var
+        WA: Codeunit "WhatsApp Integration";
+        Customer: Record Customer;
+        Setup: Record "WA Setup";
+        Phone: Text;
+    begin
+        if SalesInvoiceHeader."No." = '' then exit;
+        if not Setup.Get() or not Setup.Enabled then exit;
+        if not Customer.Get(SalesInvoiceHeader."Sell-to Customer No.") then exit;
+        if Customer."Phone No." = '' then exit;
+
+        SalesInvoiceHeader.CalcFields(Amount);
+        Phone := BuildPhone(Setup."Country Code", Customer."Phone No.");
+
+        // Never block or roll back posting because a notification failed
+        if not TrySend(WA, SalesInvoiceHeader, Phone) then
+            LogLastError(SalesInvoiceHeader."No.");
+    end;
+
+    [TryFunction]
+    local procedure TrySend(var WA: Codeunit "WhatsApp Integration";
+                            SalesInv: Record "Sales Invoice Header"; Phone: Text)
+    begin
+        WA.SendInvoiceTemplate(SalesInv, Phone);
+    end;
+}</code></pre>
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div>
+            Wrapping the send in a <code>[TryFunction]</code> is the key safety move: if Meta is down or the number is invalid, the invoice still posts cleanly and the failure is logged for retry — exactly the pattern from <a href="automating-document-processing.html">Automating Document Processing</a>.
+          </div>
+        </div>
+      </section>
+
+      <section id="production">
+        <h2>Production Hardening</h2>
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num">01</div>
+            <h4>Token in Isolated Storage</h4>
+            <p>Move the access token out of the table into <code>IsolatedStorage</code> (<code>DataScope::Company</code>). Expose only a write-only "Set Token" action — admins can update it, nobody can read it back.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">02</div>
+            <h4>Send via Job Queue</h4>
+            <p>For volume, enqueue each send instead of calling Graph synchronously inside the posting transaction. Faster posting, natural retry, no user-visible latency.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">03</div>
+            <h4>Phone Normalisation</h4>
+            <p>WhatsApp wants E.164 digits with no <code>+</code>, spaces, or leading zeros. Strip and prefix the country code centrally so one bad contact record can't break a send.</p>
+          </div>
+          <div class="perf-card">
+            <div class="perf-num">04</div>
+            <h4>Delivery Log &amp; Webhook</h4>
+            <p>Persist every attempt (message ID, status, error). Subscribe to Meta's status webhook to capture <em>delivered</em> / <em>read</em> / <em>failed</em> for a full audit trail.</p>
+          </div>
+        </div>
+
+        <h3>Readiness Checklist</h3>
+        <div class="checklist">
+          <div class="check-item check-pass">Permanent System User token — not the temporary 24-hour token</div>
+          <div class="check-item check-pass">Token stored in Isolated Storage, never returned to the UI</div>
+          <div class="check-item check-pass">Business-initiated alerts use an approved template, not free-form text</div>
+          <div class="check-item check-pass">Phone numbers normalised to E.164 before sending</div>
+          <div class="check-item check-pass">Sends wrapped in a TryFunction so posting never rolls back</div>
+          <div class="check-item check-pass">Every attempt logged; status webhook captures delivery state</div>
+          <div class="check-item check-warn">Customer opt-in recorded — required by WhatsApp Business policy</div>
+        </div>
+      </section>
+
+      <section id="conclusion">
+        <h2>Conclusion</h2>
+        <p>
+          A WhatsApp notification layer is one setup table, one codeunit, and one event subscriber — but the details (the 24-hour window, template parameter order, token security) are what separate a demo from something you'd run for a paying customer. Start with the test action, get one template approved, then wire it into posting.
+        </p>
+        <div class="callout callout-success">
+          <div class="callout-icon">✅</div>
+          <div>
+            <strong>What's next?</strong> The same Graph-API-from-AL pattern powers the <a href="hmrc-vendor-verification.html">HMRC CIS Verification</a> integration — different endpoint, same <code>HttpClient</code> discipline.
+          </div>
+        </div>
+      </section>
+
+      <div class="kicker reveal">
+        <div class="kicker-title">Key takeaways</div>
+        <ul>
+          <li>Use the hosted <strong>Cloud API</strong> (<code>graph.facebook.com</code>) — no server to run.</li>
+          <li>Business-initiated alerts must use an <strong>approved template</strong>; free-form text needs an open 24-hour window.</li>
+          <li>Template <strong>parameters are positional</strong> — keep code and approved template in lockstep.</li>
+          <li>Auto-send from a posting subscriber, wrapped in a <strong>TryFunction</strong> so messaging never blocks posting.</li>
+          <li>Keep the token in <strong>Isolated Storage</strong> and log every delivery.</li>
+        </ul>
+      </div>
+
+      <div class="article-footer">
+        <div class="article-tags">
+          <span class="tag">WhatsApp</span>
+          <span class="tag">Graph API</span>
+          <span class="tag">AL Code</span>
+          <span class="tag">HttpClient</span>
+          <span class="tag">Notifications</span>
+        </div>
+        <a href="index.html" class="back-link">Back to all articles</a>
+      </div>
+
+    </main>
+
+    <aside class="article-sidebar">
+      <div class="sidebar-sticky">
+        <div class="sidebar-widget">
+          <div class="widget-label">On this page</div>
+          <ul class="toc-mini">
+            <li><a href="#why">Why WhatsApp</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#prerequisites">Meta Prerequisites</a></li>
+            <li><a href="#setup">Setup Table &amp; Page</a></li>
+            <li><a href="#text">Text Message</a></li>
+            <li><a href="#template">Template Messages</a></li>
+            <li><a href="#auto">Auto-Send on Posting</a></li>
+            <li><a href="#production">Production Hardening</a></li>
+            <li><a href="#conclusion">Conclusion</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">More Articles</div>
+          <ul class="sidebar-links">
+            <li><a href="automating-document-processing.html">Automating Document Processing</a></li>
+            <li><a href="hmrc-vendor-verification.html">HMRC CIS Verification</a></li>
+            <li><a href="api-integration-patterns.html">API Integration Patterns</a></li>
+            <li><a href="sharepoint-bc-integration.html">SharePoint Integration</a></li>
+            <li><a href="application-insights-telemetry.html">Telemetry with App Insights</a></li>
+          </ul>
+        </div>
+        <div class="sidebar-widget">
+          <div class="widget-label">Topics Covered</div>
+          <div class="sidebar-tags">
+            <span class="tag">Cloud API</span>
+            <span class="tag">HttpClient</span>
+            <span class="tag">JsonObject</span>
+            <span class="tag">Templates</span>
+            <span class="tag">EventSubscriber</span>
+          </div>
+        </div>
+        <div class="sidebar-widget sidebar-contact">
+          <div class="widget-label">Questions?</div>
+          <p>Have a question about this implementation?</p>
+          <a href="mailto:ranjithravi282@hotmail.com" class="contact-btn">Get in touch</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© <span id="year">2026</span> Ranjith · Business Central Engineering</span>
+      <div class="footer-social">
+        <a href="mailto:ranjithravi282@hotmail.com">Email</a>
+        <a href="https://github.com/Ranjith-codeing" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <button class="to-top" type="button" aria-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
